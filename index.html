@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jordan's Face .com</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <!-- Starfield layers -->
+  <div class="stars stars-1"></div>
+  <div class="stars stars-2"></div>
+  <div class="stars stars-3"></div>
+  <div class="nebula"></div>
+  <div class="shooting-star star-1"></div>
+  <div class="shooting-star star-2"></div>
+  <div class="shooting-star star-3"></div>
+
+  <!-- Static galaxy planets for depth -->
+  <div class="galaxy-planet gp-1"></div>
+  <div class="galaxy-planet gp-2"></div>
+  <div class="galaxy-planet gp-3"></div>
+  <div class="galaxy-planet gp-4"></div>
+  <div class="galaxy-planet gp-5"></div>
+  <div class="galaxy-planet gp-6"></div>
+  <div class="galaxy-planet gp-7"></div>
+  <div class="galaxy-planet gp-8"></div>
+
+  <header>
+    <h1 class="title glitch" data-text="JORDAN'S FACE .COM">JORDAN'S FACE .COM</h1>
+    <p class="subtitle">[ TRANSMISSION INCOMING... ]</p>
+  </header>
+
+  <main class="hero">
+    <!-- Left: Astronaut -->
+    <div class="astronaut-side">
+      <div class="astronaut-container">
+        <!-- Escape Pod -->
+        <div class="escape-pod">
+          <div class="pod-body">
+            <div class="pod-window pod-window-1"></div>
+            <div class="pod-window pod-window-2"></div>
+            <div class="pod-antenna"></div>
+            <div class="pod-engine">
+              <div class="pod-flame pod-flame-1"></div>
+              <div class="pod-flame pod-flame-2"></div>
+              <div class="pod-flame pod-flame-3"></div>
+            </div>
+            <div class="pod-label">JERGUSIA-7</div>
+          </div>
+        </div>
+
+        <!-- Tether SVG (behind characters, z-index 1) -->
+        <svg class="tether-svg" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="tether-grad-j" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#8899aa" stop-opacity="0.9" />
+              <stop offset="100%" stop-color="#aabbcc" stop-opacity="0.4" />
+            </linearGradient>
+            <linearGradient id="tether-grad-c" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#8899aa" stop-opacity="0.9" />
+              <stop offset="100%" stop-color="#aabbcc" stop-opacity="0.4" />
+            </linearGradient>
+          </defs>
+          <!-- Tether to Jordan: narrow at pod (~3px), S-curve, widens at suit (~10px) -->
+          <path d="M -66,5 C -20,5 30,100 98,299
+                   L 102,309
+                   C 25,110 -15,12 -66,12 Z"
+                fill="url(#tether-grad-j)" />
+          <!-- Tether to Chai: narrow at pod (~3px), curves down, widens at cat (~8px) -->
+          <path d="M -66,10 C -60,80 -80,200 -48,353
+                   L -40,360
+                   C -72,208 -52,85 -66,17 Z"
+                fill="url(#tether-grad-c)" />
+        </svg>
+
+        <div class="astronaut">
+          <!-- Helmet -->
+          <div class="helmet">
+            <div class="helmet-glass">
+              <img src="images/jordan.jpeg" alt="Jordan's Face" class="face-img">
+              <div class="helmet-glint"></div>
+            </div>
+          </div>
+
+          <!-- Spacesuit body -->
+          <div class="suit-body">
+            <div class="suit-patch patch-left"></div>
+            <div class="suit-patch patch-right"></div>
+            <div class="oxygen-tube"></div>
+            <div class="suit-panel">
+              <div class="panel-light light-1"></div>
+              <div class="panel-light light-2"></div>
+            </div>
+          </div>
+
+          <!-- Arms -->
+          <div class="suit-arm arm-left">
+            <div class="glove">&#9756;</div>
+          </div>
+          <div class="suit-arm arm-right">
+            <div class="glove">&#9758;</div>
+          </div>
+
+          <!-- Legs + boots -->
+          <div class="suit-legs">
+            <div class="suit-leg leg-left"></div>
+            <div class="suit-leg leg-right"></div>
+          </div>
+          <div class="boots">
+            <div class="boot boot-left"></div>
+            <div class="boot boot-right"></div>
+          </div>
+        </div>
+
+        <!-- Chai Latte - Cat Astronaut Companion -->
+        <div class="cat-astronaut">
+          <div class="cat-helmet">
+            <div class="cat-ear cat-ear-left"></div>
+            <div class="cat-ear cat-ear-right"></div>
+            <div class="cat-helmet-glass">
+              <div class="cat-face">
+                <div class="cat-eye cat-eye-left">
+                  <div class="cat-pupil"></div>
+                </div>
+                <div class="cat-eye cat-eye-right robot-eye">
+                  <div class="robot-scanner"></div>
+                </div>
+                <div class="cat-nose"></div>
+                <div class="cat-whiskers whiskers-left"></div>
+                <div class="cat-whiskers whiskers-right"></div>
+                <div class="cat-mouth"></div>
+                <div class="cat-marking marking-1"></div>
+                <div class="cat-marking marking-2"></div>
+              </div>
+            </div>
+          </div>
+          <div class="cat-body">
+            <div class="cat-chest-plate"></div>
+            <div class="cat-arm cat-arm-left cat-paw"></div>
+            <div class="cat-arm cat-arm-right cat-robot-arm"></div>
+          </div>
+          <div class="cat-legs-wrap">
+            <div class="cat-leg cat-leg-left"></div>
+            <div class="cat-leg cat-leg-right cat-robot-leg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Story terminal -->
+    <div class="story-side">
+      <div class="terminal">
+        <div class="terminal-header">
+          <span class="terminal-dot dot-red"></span>
+          <span class="terminal-dot dot-yellow"></span>
+          <span class="terminal-dot dot-green"></span>
+          <span class="terminal-title">TRANSMISSION_LOG.txt</span>
+        </div>
+        <div class="terminal-body">
+          <p class="terminal-line line-dim">[STARDATE 2026.02.25]</p>
+          <p class="terminal-line line-dim">[SOURCE: UNKNOWN SECTOR]</p>
+          <p class="terminal-line line-dim">[SIGNAL STRENGTH: ██████░░ 78%]</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line line-highlight">&gt; ORIGIN STORY:</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line">On the distant planet of <span class="line-accent">JERGUSIA-7,</span> a great catastrophe struck. The planet was destroyed.</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line">But before the end, a single escape pod was launched into the void &mdash; carrying the last surviving Jergusian:</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line line-highlight">A baby named JORDAN.</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line">She was not alone. Beside her was <span class="line-accent">CHAI LATTE</span> &mdash; half cat, half robot. Loyal companion. Copilot.</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line">Now they drift through the cosmos together, searching for one thing:</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line line-accent">A NEW FAMILY.</p>
+          <p class="terminal-line">&nbsp;</p>
+          <p class="terminal-line line-dim">[END TRANSMISSION]</p>
+          <p class="terminal-line"><span class="cursor">_</span></p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Transmission popup overlay (must be direct child of body for proper fixed positioning) -->
+  <div class="transmission-overlay" id="transmissionOverlay">
+    <div class="transmission-modal" id="transmissionModal">
+      <div class="transmission-static"></div>
+
+      <!-- Phase 1: Incoming alert -->
+      <div id="phase1">
+        <div class="transmission-icon">⦿</div>
+        <div class="transmission-alert">INCOMING TRANSMISSION</div>
+        <div class="transmission-meta">
+          <span>SOURCE: UNKNOWN SECTOR</span>
+          <span>SIGNAL: ██████░░ 78%</span>
+          <span>ENCRYPTION: JERGUSIAN-7X</span>
+        </div>
+        <div class="transmission-freq">
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+          <span class="freq-bar"></span>
+        </div>
+        <button class="transmission-accept" onclick="acceptTransmission()">
+          ▶ ACCEPT TRANSMISSION
+        </button>
+        <div class="transmission-warning">[ DECRYPT &amp; DISPLAY? ]</div>
+      </div>
+
+      <!-- Phase 2: Typewriter readout -->
+      <div id="phase2" style="display:none;">
+        <div class="transmission-readout-header">TRANSMISSION_LOG.txt</div>
+        <div class="transmission-readout" id="transmissionReadout">
+          <span class="cursor" id="typeCursor">_</span>
+        </div>
+        <button class="transmission-accept mission-btn" id="missionBtn" style="display:none;" onclick="acceptMission()">
+          ▶ ACCEPT MISSION
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <nav class="game-menu">
+    <p class="menu-title">-- HELP BABY JORDAN ON HER INTERGALACTIC JOURNEY --</p>
+    <ul>
+      <li class="menu-item" onclick="window.location='faceman.html'">
+        <div class="game-info">
+          <span class="game-name">LEVEL 1: ESCAPE FROM JERGUSIA-7</span>
+          <span class="game-desc">Navigate the maze from crib to escape pod before the planet explodes.</span>
+        </div>
+        <span class="status">PLAY NOW!</span>
+      </li>
+      <li class="menu-item" onclick="window.location='invaders.html'">
+        <div class="game-info">
+          <span class="game-name">LEVEL 2: JERGUSIA-7 INVADERS</span>
+          <span class="game-desc">Blast through enemy ships and reach a safer orbit.</span>
+        </div>
+        <span class="status">PLAY NOW!</span>
+      </li>
+      <li class="menu-item locked">
+        <div class="game-info">
+          <span class="game-name">LEVEL 3: METEOR MAYHEM</span>
+          <span class="game-desc">Dodge and destroy meteors to survive the shower.</span>
+        </div>
+        <span class="status">COMING SOON</span>
+      </li>
+      <li class="menu-item locked">
+        <div class="game-info">
+          <span class="game-name">LEVEL 4: A NEW HOPE</span>
+          <span class="game-desc">Decode a mysterious alien transmission before time runs out.</span>
+        </div>
+        <span class="status">COMING SOON</span>
+      </li>
+      <li class="menu-item locked">
+        <div class="game-info">
+          <span class="game-name">LEVEL 5: ALMOST HOME</span>
+          <span class="game-desc">Puzzle together an intergalactic map to chart the course home.</span>
+        </div>
+        <span class="status">COMING SOON</span>
+      </li>
+      <li class="menu-item locked">
+        <div class="game-info">
+          <span class="game-name">LEVEL 6: THE FINAL FRONTIER</span>
+          <span class="game-desc">Brave unfamiliar terrain to reach safety on a new planet.</span>
+        </div>
+        <span class="status">COMING SOON</span>
+      </li>
+    </ul>
+  </nav>
+
+  <footer>
+    <p>&copy; 2026 JORDAN'S FACE .COM &mdash; ALL FACES RESERVED</p>
+  </footer>
+
+  <!-- Music toggle button -->
+  <button class="music-toggle" id="musicToggle" onclick="toggleMusic()">
+    <div class="eq-bars">
+      <div class="eq-bar" style="height:3px"></div>
+      <div class="eq-bar" style="height:3px"></div>
+      <div class="eq-bar" style="height:3px"></div>
+      <div class="eq-bar" style="height:3px"></div>
+      <div class="eq-bar" style="height:3px"></div>
+    </div>
+    <span id="musicLabel">LOADING...</span>
+  </button>
+
+  <script>
+    // Stardust cursor trail
+    (function() {
+      const colors = ['#ffee55', '#ffaa00', '#ff66cc', '#66ddff', '#aaffaa', '#ffffff', '#ffdd88', '#dd99ff'];
+      let lastX = 0, lastY = 0;
+      let frameCount = 0;
+
+      function createDustParticle(x, y) {
+        const el = document.createElement('div');
+        el.className = 'stardust';
+        const size = Math.random() * 6 + 2;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const dx = (Math.random() - 0.5) * 60;
+        const dy = (Math.random() - 0.5) * 50 + 20;
+        el.style.cssText = `
+          left: ${x - size / 2}px;
+          top: ${y - size / 2}px;
+          width: ${size}px;
+          height: ${size}px;
+          background: ${color};
+          box-shadow: 0 0 ${size + 4}px ${color};
+          --dx: ${dx}px;
+          --dy: ${dy}px;
+        `;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1000);
+      }
+
+      function createMiniStar(x, y) {
+        const el = document.createElement('div');
+        el.className = 'stardust-star';
+        const size = Math.random() * 12 + 8;
+        const color = colors[Math.floor(Math.random() * 4)];
+        el.style.cssText = `
+          left: ${x - size / 2}px;
+          top: ${y - size / 2}px;
+          width: ${size}px;
+          height: ${size}px;
+        `;
+        el.innerHTML = `<svg width="${size}" height="${size}" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="12,0 15,9 24,9 17,14.5 19.5,24 12,18.5 4.5,24 7,14.5 0,9 9,9"
+            fill="${color}" opacity="0.9"/>
+        </svg>`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1200);
+      }
+
+      document.addEventListener('mousemove', function(e) {
+        frameCount++;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        const speed = Math.sqrt(dx * dx + dy * dy);
+        lastX = e.clientX;
+        lastY = e.clientY;
+
+        // Spawn dust particles every frame — more when moving faster
+        const count = Math.min(Math.floor(speed / 5) + 2, 6);
+        for (let i = 0; i < count; i++) {
+          const ox = (Math.random() - 0.5) * 18;
+          const oy = (Math.random() - 0.5) * 18;
+          createDustParticle(e.clientX + ox, e.clientY + oy);
+        }
+
+        // Mini stars more frequently
+        if (frameCount % 3 === 0 && speed > 3) {
+          const ox = (Math.random() - 0.5) * 24;
+          const oy = (Math.random() - 0.5) * 24;
+          createMiniStar(e.clientX + ox, e.clientY + oy);
+        }
+      });
+    })();
+  </script>
+
+  <script>
+    // ========================================
+    // RETRO SPACE SYNTH — procedural chiptune
+    // ========================================
+    (function() {
+      let ctx, masterGain, isPlaying = false;
+      let scheduledSources = [];
+      let loopTimer = null;
+
+      // Musical constants — C minor pentatonic in space
+      const BPM = 88;
+      const STEP = 60 / BPM / 2; // eighth note duration
+
+      // Note frequencies
+      const N = {
+        C2:65.41, D2:73.42, Eb2:77.78, G2:98, Bb2:116.54,
+        C3:130.81, D3:146.83, Eb3:155.56, F3:174.61, G3:196, Ab3:207.65, Bb3:233.08,
+        C4:261.63, D4:293.66, Eb4:311.13, F4:349.23, G4:392, Ab4:415.30, Bb4:466.16,
+        C5:523.25, D5:587.33, Eb5:622.25, G5:783.99, Bb5:932.33,
+        C6:1046.50
+      };
+
+      // Melody patterns (dreamy, spacey arpeggios)
+      const melodyPatterns = [
+        // Pattern A — rising hope
+        [N.C4, N.Eb4, N.G4, N.Bb4, N.C5, N.Bb4, N.G4, N.Eb4,
+         N.F4, N.Ab4, N.C5, N.Eb5, N.C5, N.Ab4, N.F4, N.Ab4],
+        // Pattern B — floating wonder
+        [N.G4, N.Bb4, N.D5, N.G5, N.D5, N.Bb4, N.G4, N.D4,
+         N.Eb4, N.G4, N.Bb4, N.Eb5, N.Bb4, N.G4, N.Eb4, N.G4],
+        // Pattern C — gentle descent
+        [N.C5, N.Bb4, N.Ab4, N.G4, N.Eb4, N.D4, N.C4, N.D4,
+         N.Eb4, N.G4, N.Ab4, N.Bb4, N.C5, N.Eb5, N.D5, N.C5],
+        // Pattern D — stargazing
+        [N.Eb4, N.G4, N.C5, N.G4, N.Eb5, N.C5, N.G4, N.C5,
+         N.D4, N.G4, N.Bb4, N.D5, N.Bb4, N.G4, N.D4, N.G4],
+      ];
+
+      // Bass line (slow, deep, grounding)
+      const bassPatterns = [
+        [N.C2, null, N.C2, null, N.Eb2, null, N.Eb2, null,
+         N.Ab3*0.5, null, N.Ab3*0.5, null, N.G2, null, N.G2, null],
+        [N.C2, null, N.G2, null, N.Eb2, null, N.Bb2, null,
+         N.Ab3*0.5, null, N.Eb2, null, N.G2, null, N.C2, null],
+      ];
+
+      // Pad chords (slow, ethereal)
+      const padChords = [
+        [N.C3, N.Eb3, N.G3],        // Cm
+        [N.Ab3*0.5, N.C3, N.Eb3],   // Ab
+        [N.Bb2, N.D3, N.F3],        // Bb
+        [N.G2, N.Bb2, N.D3],        // Gm
+      ];
+
+      function createOsc(type, freq, gainVal, startTime, duration, fadeIn, fadeOut) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, startTime);
+        gain.gain.setValueAtTime(0, startTime);
+        gain.gain.linearRampToValueAtTime(gainVal, startTime + fadeIn);
+        gain.gain.setValueAtTime(gainVal, startTime + duration - fadeOut);
+        gain.gain.linearRampToValueAtTime(0, startTime + duration);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(startTime);
+        osc.stop(startTime + duration + 0.05);
+        scheduledSources.push(osc);
+        return osc;
+      }
+
+      function scheduleLoop(startTime) {
+        const patIdx = Math.floor(Math.random() * melodyPatterns.length);
+        const bassIdx = Math.floor(Math.random() * bassPatterns.length);
+        const chordIdx = Math.floor(Math.random() * padChords.length);
+        const chord2Idx = (chordIdx + 1 + Math.floor(Math.random() * 2)) % padChords.length;
+
+        const melody = melodyPatterns[patIdx];
+        const bass = bassPatterns[bassIdx];
+        const loopDuration = 16 * STEP;
+
+        // Melody — square wave, quiet, retro
+        melody.forEach((freq, i) => {
+          if (freq) {
+            const t = startTime + i * STEP;
+            // Slight random humanization
+            const detune = (Math.random() - 0.5) * 6;
+            const osc = createOsc('square', freq, 0.045, t, STEP * 0.8, 0.01, 0.05);
+            osc.detune.setValueAtTime(detune, t);
+          }
+        });
+
+        // Secondary melody — triangle, softer, offset octave shimmer
+        if (Math.random() > 0.3) {
+          melody.forEach((freq, i) => {
+            if (freq && i % 2 === 0) {
+              const t = startTime + i * STEP + STEP * 0.5;
+              createOsc('triangle', freq * 2, 0.018, t, STEP * 0.6, 0.02, 0.05);
+            }
+          });
+        }
+
+        // Bass — triangle wave, deep
+        bass.forEach((freq, i) => {
+          if (freq) {
+            const t = startTime + i * STEP;
+            createOsc('triangle', freq, 0.08, t, STEP * 1.8, 0.05, 0.1);
+          }
+        });
+
+        // Pad — sine drones, two chords per loop
+        const chord1 = padChords[chordIdx];
+        const chord2 = padChords[chord2Idx];
+        chord1.forEach(freq => {
+          createOsc('sine', freq, 0.03, startTime, loopDuration * 0.55, 0.3, 0.4);
+        });
+        chord2.forEach(freq => {
+          createOsc('sine', freq, 0.03, startTime + loopDuration * 0.5, loopDuration * 0.55, 0.3, 0.4);
+        });
+
+        // Sparkle — high pitched random pings
+        for (let i = 0; i < 4; i++) {
+          const sparkleTime = startTime + Math.random() * loopDuration;
+          const sparkleFreq = [N.C5, N.Eb5, N.G5, N.C6, N.Bb5][Math.floor(Math.random() * 5)];
+          createOsc('sine', sparkleFreq, 0.02, sparkleTime, 0.3, 0.01, 0.2);
+        }
+
+        // Schedule next loop
+        const nextStart = startTime + loopDuration;
+        const delay = (nextStart - ctx.currentTime) * 1000 - 100;
+        loopTimer = setTimeout(() => {
+          if (isPlaying) scheduleLoop(nextStart);
+        }, Math.max(delay, 50));
+      }
+
+      function startMusic() {
+        if (isPlaying) return;
+        const btn = document.getElementById('musicToggle');
+        const label = document.getElementById('musicLabel');
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(0, ctx.currentTime);
+        masterGain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 1.5);
+        masterGain.connect(ctx.destination);
+        isPlaying = true;
+        scheduledSources = [];
+        scheduleLoop(ctx.currentTime + 0.1);
+        btn.classList.add('playing');
+        label.textContent = 'MUTE';
+      }
+
+      function stopMusic() {
+        if (!isPlaying) return;
+        const btn = document.getElementById('musicToggle');
+        const label = document.getElementById('musicLabel');
+        isPlaying = false;
+        if (loopTimer) clearTimeout(loopTimer);
+        masterGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+        setTimeout(() => {
+          scheduledSources.forEach(s => { try { s.stop(); } catch(e){} });
+          scheduledSources = [];
+          ctx.close();
+        }, 600);
+        btn.classList.remove('playing');
+        label.textContent = 'PLAY MUSIC';
+      }
+
+      window.toggleMusic = function() {
+        if (isPlaying) { stopMusic(); } else { startMusic(); }
+      };
+
+      // Music starts when transmission is accepted
+      window.startMusicFromTransmission = startMusic;
+    })();
+  </script>
+
+  <script>
+    // ========================================
+    // TRANSMISSION TYPEWRITER + SOUND FX
+    // ========================================
+    (function() {
+      let typeSfxCtx = null;
+      let voiceSynth = window.speechSynthesis;
+      let femaleVoice = null;
+
+      // Transmission lines — with optional voice narration text
+      const lines = [
+        { text: '[STARDATE 2026.02.25]', cls: 'line-dim', speed: 25, voice: 'Stardate. 2026.02.25.' },
+        { text: '[SOURCE: UNKNOWN SECTOR]', cls: 'line-dim', speed: 25, voice: 'Source. Unknown sector.' },
+        { text: '[SIGNAL STRENGTH: ██████░░ 78%]', cls: 'line-dim', speed: 25, voice: 'Signal strength. 78 percent.' },
+        { text: '', cls: '', speed: 0 },
+        { text: '> ORIGIN STORY:', cls: 'line-highlight', speed: 35, voice: 'Origin story.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'On the distant planet of JERGUSIA-7, a great catastrophe struck. The planet was destroyed.', cls: '', speed: 22, accent: 'JERGUSIA-7,', voice: 'On the distant planet of Jergusia 7, a great catastrophe struck. The planet was destroyed.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'But before the end, a single escape pod was launched into the void \u2014 carrying the last surviving Jergusian:', cls: '', speed: 22, voice: 'But before the end, a single escape pod was launched into the void, carrying the last surviving Jergusian.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'A baby named JORDAN.', cls: 'line-highlight', speed: 40, voice: 'A baby, named Jordan.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'She was not alone. Beside her was CHAI LATTE \u2014 half cat, half robot. Loyal companion. Copilot.', cls: '', speed: 22, accent: 'CHAI LATTE', voice: 'She was not alone. Beside her was Chai Latte. Half cat, half robot. Loyal companion. Copilot.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'Now they drift through the cosmos together, searching for one thing:', cls: '', speed: 22, voice: 'Now they drift through the cosmos together, searching for one thing.' },
+        { text: '', cls: '', speed: 0 },
+        { text: 'A NEW FAMILY.', cls: 'line-accent', speed: 50, voice: 'A new family.' },
+        { text: '', cls: '', speed: 0 },
+        { text: '[END TRANSMISSION]', cls: 'line-dim', speed: 30, voice: 'End transmission.' },
+      ];
+
+      // Find the best female English voice
+      function pickFemaleVoice() {
+        const voices = voiceSynth.getVoices();
+        // Priority order: look for specific high-quality female voices
+        const prefs = [
+          v => /samantha/i.test(v.name),
+          v => /karen/i.test(v.name),
+          v => /victoria/i.test(v.name),
+          v => /fiona/i.test(v.name),
+          v => /zira/i.test(v.name),
+          v => /female/i.test(v.name) && /en/i.test(v.lang),
+          v => /woman/i.test(v.name) && /en/i.test(v.lang),
+          v => /en[-_]US/i.test(v.lang) && !/male/i.test(v.name),
+          v => /en[-_]GB/i.test(v.lang) && !/male/i.test(v.name),
+          v => /en/i.test(v.lang),
+        ];
+        for (const test of prefs) {
+          const match = voices.find(test);
+          if (match) return match;
+        }
+        return voices[0] || null;
+      }
+
+      // Preload voices (some browsers load async)
+      if (voiceSynth.getVoices().length) {
+        femaleVoice = pickFemaleVoice();
+      }
+      voiceSynth.onvoiceschanged = function() {
+        femaleVoice = pickFemaleVoice();
+      };
+
+      // Speak a line of text
+      function speakLine(text) {
+        if (!voiceSynth || !text) return Promise.resolve();
+        // Cancel any ongoing speech
+        voiceSynth.cancel();
+        return new Promise(resolve => {
+          const utter = new SpeechSynthesisUtterance(text);
+          if (femaleVoice) utter.voice = femaleVoice;
+          utter.lang = 'en-US';
+          utter.rate = 0.85;
+          utter.pitch = 1.1;
+          utter.volume = 0.9;
+          utter.onend = resolve;
+          utter.onerror = resolve;
+          voiceSynth.speak(utter);
+        });
+      }
+
+      // Sound FX using Web Audio API
+      function playTypeClick() {
+        if (!typeSfxCtx) return;
+        const t = typeSfxCtx.currentTime;
+        // Short noise burst — like a mechanical key
+        const bufferSize = typeSfxCtx.sampleRate * 0.015;
+        const buffer = typeSfxCtx.createBuffer(1, bufferSize, typeSfxCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+        }
+        const src = typeSfxCtx.createBufferSource();
+        src.buffer = buffer;
+
+        // Bandpass to make it sound clicky
+        const filter = typeSfxCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 3000 + Math.random() * 2000;
+        filter.Q.value = 2;
+
+        const gain = typeSfxCtx.createGain();
+        gain.gain.setValueAtTime(0.12 + Math.random() * 0.06, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(typeSfxCtx.destination);
+        src.start(t);
+        src.stop(t + 0.03);
+      }
+
+      function playTransmissionNoise() {
+        if (!typeSfxCtx) return;
+        const t = typeSfxCtx.currentTime;
+        // Short radio static burst between lines
+        const bufferSize = typeSfxCtx.sampleRate * 0.15;
+        const buffer = typeSfxCtx.createBuffer(1, bufferSize, typeSfxCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+        }
+        const src = typeSfxCtx.createBufferSource();
+        src.buffer = buffer;
+
+        const filter = typeSfxCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1500;
+        filter.Q.value = 0.8;
+
+        const gain = typeSfxCtx.createGain();
+        gain.gain.setValueAtTime(0.04, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(typeSfxCtx.destination);
+        src.start(t);
+        src.stop(t + 0.2);
+      }
+
+      function playAcceptBeep() {
+        if (!typeSfxCtx) return;
+        const t = typeSfxCtx.currentTime;
+        // Descending two-tone beep
+        const osc = typeSfxCtx.createOscillator();
+        const gain = typeSfxCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(880, t);
+        osc.frequency.setValueAtTime(660, t + 0.08);
+        osc.frequency.setValueAtTime(440, t + 0.16);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.linearRampToValueAtTime(0, t + 0.25);
+        osc.connect(gain);
+        gain.connect(typeSfxCtx.destination);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      }
+
+      async function typewriterLine(container, line, cursor) {
+        if (line.text === '') {
+          const p = document.createElement('p');
+          p.className = 'terminal-line';
+          p.innerHTML = '&nbsp;';
+          container.insertBefore(p, cursor);
+          return;
+        }
+
+        const p = document.createElement('p');
+        p.className = 'terminal-line ' + (line.cls || '');
+        container.insertBefore(p, cursor);
+
+        // If this line has an accent word, we'll wrap it as we type
+        const accentWord = line.accent || null;
+        let fullText = line.text;
+        let charIndex = 0;
+
+        playTransmissionNoise();
+
+        return new Promise(resolve => {
+          function typeChar() {
+            if (charIndex < fullText.length) {
+              // Build displayed text up to charIndex
+              charIndex++;
+              let displayed = fullText.substring(0, charIndex);
+
+              // Wrap accent word if fully typed
+              if (accentWord && displayed.includes(accentWord)) {
+                displayed = displayed.replace(accentWord, `<span class="line-accent">${accentWord}</span>`);
+              }
+              p.innerHTML = displayed;
+
+              // Scroll terminal to bottom
+              container.scrollTop = container.scrollHeight;
+
+              // Play type sound (skip spaces sometimes)
+              if (fullText[charIndex - 1] !== ' ' || Math.random() > 0.5) {
+                playTypeClick();
+              }
+
+              const jitter = line.speed + (Math.random() - 0.5) * 15;
+              setTimeout(typeChar, Math.max(jitter, 10));
+            } else {
+              // Final accent wrap
+              if (accentWord) {
+                p.innerHTML = fullText.replace(accentWord, `<span class="line-accent">${accentWord}</span>`);
+              }
+              resolve();
+            }
+          }
+          typeChar();
+        });
+      }
+
+      // Phase 1 → Phase 2: Accept transmission, start typewriter in popup
+      window.acceptTransmission = async function() {
+        typeSfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+        playAcceptBeep();
+
+        // Start music
+        if (window.startMusicFromTransmission) {
+          window.startMusicFromTransmission();
+        }
+
+        // Switch phases
+        document.getElementById('phase1').style.display = 'none';
+        document.getElementById('phase2').style.display = 'block';
+        document.getElementById('transmissionModal').classList.add('phase2');
+
+        await new Promise(r => setTimeout(r, 400));
+
+        // Typewriter into the popup readout
+        const container = document.getElementById('transmissionReadout');
+        const cursor = document.getElementById('typeCursor');
+
+        for (let i = 0; i < lines.length; i++) {
+          // Start voice and typewriter simultaneously, wait for both
+          const voicePromise = lines[i].voice ? speakLine(lines[i].voice) : Promise.resolve();
+          const typePromise = typewriterLine(container, lines[i], cursor);
+          await Promise.all([voicePromise, typePromise]);
+          if (lines[i].text !== '') {
+            await new Promise(r => setTimeout(r, 200));
+          } else {
+            await new Promise(r => setTimeout(r, 80));
+          }
+        }
+
+        // Show ACCEPT MISSION button
+        cursor.style.display = 'none';
+        document.getElementById('missionBtn').style.display = 'inline-block';
+      };
+
+      // Phase 2 → Dismiss: Close overlay, reveal homepage
+      window.acceptMission = function() {
+        // Stop any ongoing narration
+        if (voiceSynth) voiceSynth.cancel();
+        if (typeSfxCtx) {
+          playAcceptBeep();
+        }
+        const overlay = document.getElementById('transmissionOverlay');
+        overlay.classList.add('dismissed');
+        setTimeout(() => overlay.remove(), 600);
+      };
+    })();
+  </script>
+</body>
+</html>

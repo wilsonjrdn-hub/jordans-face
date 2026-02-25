@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JORD-MAN | Jordan's Face .com</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #33ff33;
+      font-family: 'Press Start 2P', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    /* CRT scanlines */
+    .scanlines {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    header {
+      text-align: center;
+      padding: 15px 10px 5px;
+      width: 100%;
+    }
+
+    .title {
+      font-size: 1.2rem;
+      color: #ff0;
+      text-shadow: 0 0 10px #ff0, 0 0 20px #ffa500;
+    }
+
+    .title a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .title a:hover {
+      text-shadow: 0 0 15px #ff0, 0 0 30px #ffa500, 0 0 45px #ff0;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      padding: 10px 5px;
+      font-size: 0.6rem;
+    }
+
+    .score-label { color: #ff0; }
+    .score-value { color: #fff; margin-left: 5px; }
+    .lives-display { display: flex; gap: 5px; align-items: center; }
+    .life-icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .life-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #gameCanvas {
+      border: 3px solid #333;
+      box-shadow: 0 0 20px rgba(51,255,51,0.2);
+      image-rendering: pixelated;
+    }
+
+    .game-msg {
+      font-size: 0.65rem;
+      color: #33ff33;
+      margin-top: 12px;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .controls-info {
+      font-size: 0.45rem;
+      color: #555;
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* Mobile d-pad */
+    .dpad {
+      display: none;
+      margin-top: 15px;
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .dpad-btn {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      background: rgba(51,255,51,0.15);
+      border: 2px solid #33ff33;
+      border-radius: 6px;
+      color: #33ff33;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .dpad-btn:active { background: rgba(51,255,51,0.35); }
+
+    .dpad-up    { top: 0;   left: 48px; }
+    .dpad-down  { bottom: 0; left: 48px; }
+    .dpad-left  { top: 48px; left: 0; }
+    .dpad-right { top: 48px; right: 0; }
+
+    @media (max-width: 600px) {
+      .dpad { display: block; }
+    }
+
+    @media (pointer: coarse) {
+      .dpad { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <h1 class="title"><a href="index.html">JORD-MAN</a></h1>
+  </header>
+
+  <div class="hud">
+    <div>
+      <span class="score-label">SCORE:</span>
+      <span class="score-value" id="score">0</span>
+    </div>
+    <div>
+      <span class="score-label">HIGH:</span>
+      <span class="score-value" id="highScore">0</span>
+    </div>
+    <div class="lives-display">
+      <span class="score-label">LIVES:</span>
+      <span id="livesIcons"></span>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+  <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
+  <p class="controls-info">ARROW KEYS / WASD TO MOVE</p>
+
+  <div class="dpad" id="dpad">
+    <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+    <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+    <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+    <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+  </div>
+
+<script>
+// ==========================================
+//  JORD-MAN — A Pac-Man tribute with Jordan's face
+// ==========================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// -- Grid config --
+const TILE = 24;
+const COLS = 21;
+const ROWS = 21;
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+// -- Maze layout --
+// 1 = wall, 0 = dot path, 2 = empty (no dot), 3 = power pellet, 4 = ghost house
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+  [1,3,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,3,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,1,0,1],
+  [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+  [1,1,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,1,1],
+  [2,2,2,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,2,2,2],
+  [1,1,1,1,0,1,0,1,1,4,4,4,1,1,0,1,0,1,1,1,1],
+  [2,2,2,2,0,0,0,1,4,4,4,4,4,1,0,0,0,2,2,2,2],
+  [1,1,1,1,0,1,0,1,4,4,4,4,4,1,0,1,0,1,1,1,1],
+  [2,2,2,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,2,2,2],
+  [1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,0,1],
+  [1,3,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,3,1],
+  [1,1,0,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,0,1,1],
+  [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
+  [1,0,1,1,1,1,1,1,0,0,1,0,0,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// Deep copy for resets
+const MAP_ORIGINAL = MAP.map(r => [...r]);
+let map;
+
+// -- Load face image --
+const faceImg = new Image();
+faceImg.src = 'images/jordan.jpeg';
+
+// -- Game state --
+let score = 0;
+let highScore = parseInt(localStorage.getItem('jordman-high') || '0');
+let lives = 3;
+let gameState = 'waiting'; // waiting, playing, dead, gameover, win
+let deathTimer = 0;
+let msgTimer = 0;
+
+// -- Player --
+let player = { x: 10, y: 15, dir: 'right', nextDir: 'right', moveProgress: 0 };
+const PLAYER_SPEED = 0.08;
+
+// -- Ghosts --
+const GHOST_COLORS = ['#ff0000', '#ffb8ff', '#00ffff', '#ffb852'];
+const GHOST_NAMES  = ['Blinky', 'Pinky', 'Inky', 'Clyde'];
+let ghosts = [];
+let frightenedTimer = 0;
+const FRIGHTENED_DURATION = 400;
+const GHOST_SPEED = 0.055;
+const GHOST_FRIGHTENED_SPEED = 0.035;
+
+// -- Dots count --
+let totalDots = 0;
+let dotsEaten = 0;
+
+// -- Animation --
+let frame = 0;
+
+// ==========================================
+//  INIT
+// ==========================================
+function resetMap() {
+  map = MAP_ORIGINAL.map(r => [...r]);
+  totalDots = 0;
+  dotsEaten = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (map[r][c] === 0 || map[r][c] === 3) totalDots++;
+    }
+  }
+}
+
+function resetPlayer() {
+  player.x = 10;
+  player.y = 15;
+  player.dir = 'right';
+  player.nextDir = 'right';
+  player.moveProgress = 0;
+}
+
+function initGhosts() {
+  ghosts = [
+    { x: 9,  y: 9, dir: 'up',    color: GHOST_COLORS[0], mode: 'scatter', startDelay: 0   },
+    { x: 10, y: 9, dir: 'up',    color: GHOST_COLORS[1], mode: 'scatter', startDelay: 100 },
+    { x: 11, y: 9, dir: 'up',    color: GHOST_COLORS[2], mode: 'scatter', startDelay: 200 },
+    { x: 10, y: 10,dir: 'up',    color: GHOST_COLORS[3], mode: 'scatter', startDelay: 300 },
+  ];
+  ghosts.forEach(g => {
+    g.moveProgress = 0;
+    g.frightened = false;
+    g.eaten = false;
+    g.started = false;
+    g.homeX = g.x;
+    g.homeY = g.y;
+  });
+}
+
+function startGame() {
+  score = 0;
+  lives = 3;
+  resetMap();
+  resetPlayer();
+  initGhosts();
+  frightenedTimer = 0;
+  gameState = 'playing';
+  updateHUD();
+  document.getElementById('gameMsg').textContent = '';
+}
+
+// ==========================================
+//  HUD
+// ==========================================
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('highScore').textContent = highScore;
+  let iconsHtml = '';
+  for (let i = 0; i < lives; i++) {
+    iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+  }
+  document.getElementById('livesIcons').innerHTML = iconsHtml;
+}
+
+// ==========================================
+//  INPUT
+// ==========================================
+const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+                 w: 'up', s: 'down', a: 'left', d: 'right',
+                 W: 'up', S: 'down', A: 'left', D: 'right' };
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+      startGame();
+    }
+    return;
+  }
+  if (dirMap[e.key]) {
+    e.preventDefault();
+    player.nextDir = dirMap[e.key];
+  }
+});
+
+// D-pad (mobile)
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const handler = (e) => {
+    e.preventDefault();
+    const dir = btn.dataset.dir;
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+      startGame();
+    }
+    player.nextDir = dir;
+  };
+  btn.addEventListener('touchstart', handler, { passive: false });
+  btn.addEventListener('mousedown', handler);
+});
+
+// Tap to start on canvas
+canvas.addEventListener('click', () => {
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    startGame();
+  }
+});
+
+// ==========================================
+//  MOVEMENT HELPERS
+// ==========================================
+const DX = { left: -1, right: 1, up: 0, down: 0 };
+const DY = { left: 0, right: 0, up: -1, down: 1 };
+
+function isWalkable(col, row) {
+  // Tunnel wrapping
+  if (col < 0 || col >= COLS) return true;
+  if (row < 0 || row >= ROWS) return false;
+  const tile = map[row][col];
+  return tile !== 1 && tile !== 4;
+}
+
+function isWalkableGhost(col, row, ghost) {
+  if (col < 0 || col >= COLS) return true;
+  if (row < 0 || row >= ROWS) return false;
+  const tile = map[row][col];
+  // Ghosts can walk through ghost house when leaving
+  if (tile === 4) return true;
+  return tile !== 1;
+}
+
+function wrapX(x) {
+  if (x < -1) return COLS - 1;
+  if (x >= COLS) return 0;
+  return x;
+}
+
+// ==========================================
+//  PLAYER UPDATE
+// ==========================================
+function updatePlayer() {
+  if (gameState !== 'playing') return;
+
+  // Try to turn
+  const nx = player.x + DX[player.nextDir];
+  const ny = player.y + DY[player.nextDir];
+  if (player.moveProgress === 0 && isWalkable(nx, ny)) {
+    player.dir = player.nextDir;
+  }
+
+  // Move
+  const dx = DX[player.dir];
+  const dy = DY[player.dir];
+  const targetX = player.x + dx;
+  const targetY = player.y + dy;
+
+  if (isWalkable(targetX, targetY)) {
+    player.moveProgress += PLAYER_SPEED;
+    if (player.moveProgress >= 1) {
+      player.moveProgress = 0;
+      player.x = wrapX(targetX);
+      player.y = targetY;
+
+      // Eat dot
+      if (player.y >= 0 && player.y < ROWS && player.x >= 0 && player.x < COLS) {
+        const tile = map[player.y][player.x];
+        if (tile === 0) {
+          map[player.y][player.x] = 2;
+          score += 10;
+          dotsEaten++;
+        } else if (tile === 3) {
+          map[player.y][player.x] = 2;
+          score += 50;
+          dotsEaten++;
+          // Frighten ghosts!
+          frightenedTimer = FRIGHTENED_DURATION;
+          ghosts.forEach(g => {
+            if (!g.eaten) {
+              g.frightened = true;
+              // Reverse direction
+              const opp = { left:'right', right:'left', up:'down', down:'up' };
+              g.dir = opp[g.dir] || g.dir;
+            }
+          });
+        }
+      }
+
+      // Check win
+      if (dotsEaten >= totalDots) {
+        gameState = 'win';
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('jordman-high', highScore);
+        }
+        updateHUD();
+        document.getElementById('gameMsg').textContent = 'YOU WIN! PRESS ENTER TO PLAY AGAIN';
+      }
+    }
+  }
+}
+
+// ==========================================
+//  GHOST AI
+// ==========================================
+function updateGhosts() {
+  if (gameState !== 'playing') return;
+
+  // Frightened timer
+  if (frightenedTimer > 0) {
+    frightenedTimer--;
+    if (frightenedTimer <= 0) {
+      ghosts.forEach(g => { g.frightened = false; });
+    }
+  }
+
+  ghosts.forEach((g, idx) => {
+    // Start delay
+    if (!g.started) {
+      g.startDelay--;
+      if (g.startDelay <= 0) {
+        g.started = true;
+        g.x = 10;
+        g.y = 7;
+        g.dir = 'left';
+        g.moveProgress = 0;
+      }
+      return;
+    }
+
+    const speed = g.frightened ? GHOST_FRIGHTENED_SPEED : GHOST_SPEED;
+    g.moveProgress += speed;
+
+    if (g.moveProgress >= 1) {
+      g.moveProgress = 0;
+      g.x = wrapX(g.x + DX[g.dir]);
+      g.y = g.y + DY[g.dir];
+
+      // Choose next direction at intersections
+      const dirs = ['up', 'down', 'left', 'right'];
+      const opp = { left:'right', right:'left', up:'down', down:'up' };
+      const possible = dirs.filter(d => {
+        if (d === opp[g.dir]) return false;
+        const nx = g.x + DX[d];
+        const ny = g.y + DY[d];
+        return isWalkableGhost(nx, ny, g);
+      });
+
+      if (possible.length === 0) {
+        // Dead end, reverse
+        g.dir = opp[g.dir];
+      } else if (g.frightened) {
+        // Random when frightened
+        g.dir = possible[Math.floor(Math.random() * possible.length)];
+      } else {
+        // Chase: move toward player (simple)
+        let bestDir = possible[0];
+        let bestDist = Infinity;
+        // Scatter corners for variety
+        let targetX = player.x;
+        let targetY = player.y;
+
+        // Blinky chases directly
+        // Pinky targets 4 ahead
+        if (idx === 1) {
+          targetX = player.x + DX[player.dir] * 4;
+          targetY = player.y + DY[player.dir] * 4;
+        }
+        // Inky: random-ish
+        if (idx === 2) {
+          targetX = player.x + DX[player.dir] * 2;
+          targetY = player.y + DY[player.dir] * 2;
+        }
+        // Clyde: runs away when close
+        if (idx === 3) {
+          const dist = Math.abs(g.x - player.x) + Math.abs(g.y - player.y);
+          if (dist < 8) {
+            targetX = 0;
+            targetY = ROWS - 1;
+          }
+        }
+
+        possible.forEach(d => {
+          const nx = g.x + DX[d];
+          const ny = g.y + DY[d];
+          const dist = (nx - targetX) ** 2 + (ny - targetY) ** 2;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestDir = d;
+          }
+        });
+        g.dir = bestDir;
+      }
+    }
+  });
+
+  // Collision with player
+  ghosts.forEach(g => {
+    if (!g.started) return;
+    const dx = Math.abs(g.x + DX[g.dir] * g.moveProgress - (player.x + DX[player.dir] * player.moveProgress));
+    const dy = Math.abs(g.y + DY[g.dir] * g.moveProgress - (player.y + DY[player.dir] * player.moveProgress));
+    if (dx < 0.7 && dy < 0.7) {
+      if (g.frightened) {
+        // Eat ghost!
+        g.frightened = false;
+        g.x = 10;
+        g.y = 9;
+        g.moveProgress = 0;
+        g.dir = 'up';
+        score += 200;
+        updateHUD();
+      } else {
+        // Player dies
+        lives--;
+        updateHUD();
+        if (lives <= 0) {
+          gameState = 'gameover';
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('jordman-high', highScore);
+          }
+          updateHUD();
+          document.getElementById('gameMsg').textContent = 'GAME OVER — PRESS ENTER';
+        } else {
+          gameState = 'dead';
+          deathTimer = 90;
+        }
+      }
+    }
+  });
+}
+
+// ==========================================
+//  DRAWING
+// ==========================================
+function drawMap() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const tile = map[r][c];
+      const x = c * TILE;
+      const y = r * TILE;
+
+      if (tile === 1) {
+        ctx.fillStyle = '#2233dd';
+        ctx.fillRect(x, y, TILE, TILE);
+        // Inner wall shading
+        ctx.fillStyle = '#1122aa';
+        ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+        // Bright border
+        ctx.strokeStyle = '#4455ff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
+      } else if (tile === 0) {
+        // Dot
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(x + TILE/2, y + TILE/2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (tile === 3) {
+        // Power pellet (pulsing)
+        const pulse = 4 + Math.sin(frame * 0.1) * 2;
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(x + TILE/2, y + TILE/2, pulse, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function drawPlayer() {
+  const px = (player.x + DX[player.dir] * player.moveProgress) * TILE;
+  const py = (player.y + DY[player.dir] * player.moveProgress) * TILE;
+  const size = TILE + 4;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(px + TILE/2, py + TILE/2, size/2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+
+  if (faceImg.complete && faceImg.naturalWidth > 0) {
+    ctx.drawImage(faceImg, px + TILE/2 - size/2, py + TILE/2 - size/2, size, size);
+  } else {
+    ctx.fillStyle = '#ff0';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Chomping mouth overlay
+  const mouthOpen = Math.abs(Math.sin(frame * 0.2)) * 0.4;
+  if (mouthOpen > 0.05) {
+    ctx.save();
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath();
+    ctx.moveTo(px + TILE/2, py + TILE/2);
+
+    let startAngle, endAngle;
+    switch (player.dir) {
+      case 'right': startAngle = mouthOpen; endAngle = -mouthOpen; break;
+      case 'left':  startAngle = Math.PI + mouthOpen; endAngle = Math.PI - mouthOpen; break;
+      case 'up':    startAngle = -Math.PI/2 + mouthOpen; endAngle = -Math.PI/2 - mouthOpen; break;
+      case 'down':  startAngle = Math.PI/2 + mouthOpen; endAngle = Math.PI/2 - mouthOpen; break;
+    }
+    ctx.arc(px + TILE/2, py + TILE/2, size/2 + 1, startAngle, endAngle, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawGhosts() {
+  ghosts.forEach((g, idx) => {
+    if (!g.started) return;
+    const gx = (g.x + DX[g.dir] * g.moveProgress) * TILE;
+    const gy = (g.y + DY[g.dir] * g.moveProgress) * TILE;
+
+    // Body
+    let color = g.color;
+    if (g.frightened) {
+      color = frightenedTimer < 100 && Math.floor(frame/8) % 2 === 0 ? '#fff' : '#2121de';
+    }
+
+    ctx.fillStyle = color;
+    // Ghost shape: rounded top, wavy bottom
+    ctx.beginPath();
+    ctx.arc(gx + TILE/2, gy + TILE/2 - 2, TILE/2 - 1, Math.PI, 0);
+    ctx.lineTo(gx + TILE - 2, gy + TILE - 2);
+
+    // Wavy bottom
+    const wave = Math.sin(frame * 0.3) * 2;
+    for (let i = TILE - 2; i >= 2; i -= 4) {
+      ctx.lineTo(gx + i, gy + TILE - 2 + (i % 8 < 4 ? wave : -wave));
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Eyes
+    if (!g.frightened) {
+      // White eyes
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.ellipse(gx + TILE/2 - 4, gy + TILE/2 - 3, 4, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(gx + TILE/2 + 4, gy + TILE/2 - 3, 4, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupils - look toward player
+      const lookX = Math.sign(player.x - g.x) * 2;
+      const lookY = Math.sign(player.y - g.y) * 2;
+      ctx.fillStyle = '#00f';
+      ctx.beginPath();
+      ctx.arc(gx + TILE/2 - 4 + lookX, gy + TILE/2 - 3 + lookY, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(gx + TILE/2 + 4 + lookX, gy + TILE/2 - 3 + lookY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Frightened eyes
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(gx + TILE/2 - 5, gy + TILE/2 - 3, 3, 3);
+      ctx.fillRect(gx + TILE/2 + 2, gy + TILE/2 - 3, 3, 3);
+      // Squiggly mouth
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(gx + 5, gy + TILE/2 + 3);
+      for (let i = 0; i < 5; i++) {
+        ctx.lineTo(gx + 5 + i * 3, gy + TILE/2 + 3 + (i % 2 === 0 ? -2 : 2));
+      }
+      ctx.stroke();
+    }
+  });
+}
+
+// ==========================================
+//  MAIN LOOP
+// ==========================================
+function gameLoop() {
+  frame++;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawMap();
+
+  if (gameState === 'playing') {
+    updatePlayer();
+    updateGhosts();
+    updateHUD();
+  }
+
+  if (gameState === 'dead') {
+    deathTimer--;
+    if (deathTimer <= 0) {
+      resetPlayer();
+      initGhosts();
+      gameState = 'playing';
+    }
+  }
+
+  if (gameState !== 'gameover' && gameState !== 'waiting' && gameState !== 'win') {
+    drawPlayer();
+  }
+
+  if (gameState === 'waiting') {
+    drawPlayer();
+  }
+
+  drawGhosts();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ==========================================
+//  BOOT
+// ==========================================
+resetMap();
+updateHUD();
+gameLoop();
+</script>
+</body>
+</html>
