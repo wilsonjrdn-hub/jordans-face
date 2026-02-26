@@ -217,7 +217,7 @@ const faceImg = new Image();
 faceImg.src = 'images/jordan.jpeg';
 
 // ---- Game Constants ----
-const MAX_WAVES = 7;
+const MAX_WAVES = 2;
 
 // ---- Game State ----
 let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win
@@ -229,8 +229,9 @@ let frame = 0;
 let shakeTimer = 0;
 let playerFlashTimer = 0;
 let waveTransitionTimer = 0;
-const WAVE_TRANSITION_DURATION = 120; // ~2 seconds at 60fps
+const WAVE_TRANSITION_DURATION = 240; // ~4 seconds at 60fps (longer for story text)
 let waveBonusAmount = 0; // stored for display during transition
+let currentPilot = 'jordan'; // 'jordan' or 'chai'
 
 // ==========================================
 //  AUDIO
@@ -480,6 +481,7 @@ function startGame() {
   score = 0;
   lives = 3;
   wave = 1;
+  currentPilot = 'jordan';
   player.x = W / 2;
   player.cooldown = 0;
   playerFlashTimer = 0;
@@ -498,12 +500,13 @@ function startGame() {
 
 function nextWave() {
   wave++;
+  currentPilot = 'chai';
   playerBullets = [];
   enemyBullets = [];
   invaderDir = 1;
-  invaderSpeed = Math.min(2, 0.5 + wave * 0.15);
-  invaderMoveInterval = Math.max(10, 30 - wave * 2);
-  invaderShootChance = Math.min(0.03, 0.008 + wave * 0.003);
+  invaderSpeed = 0.7;
+  invaderMoveInterval = 24;
+  invaderShootChance = 0.012;
   createInvaders();
   updateHUD();
 }
@@ -513,11 +516,16 @@ function nextWave() {
 // ==========================================
 function updateHUD() {
   document.getElementById('score').textContent = score;
-  document.getElementById('wave').textContent = wave + '/' + MAX_WAVES;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  document.getElementById('wave').textContent = pilotName + ' ' + wave + '/' + MAX_WAVES;
   document.getElementById('highScoreDisplay').textContent = highScore;
   let iconsHtml = '';
   for (let i = 0; i < lives; i++) {
-    iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+    if (currentPilot === 'chai') {
+      iconsHtml += '<span class="life-icon" style="background:#222;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">🐱</span> ';
+    } else {
+      iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+    }
   }
   document.getElementById('livesIcons').innerHTML = iconsHtml;
 }
@@ -657,7 +665,7 @@ function checkCollisions() {
       playWinSound();
       saveHighScore();
       updateHUD();
-      document.getElementById('gameMsg').innerHTML = 'REACHED SAFE ORBIT!<br>SCORE: ' + score + '<br>PRESS ENTER TO PLAY AGAIN';
+      document.getElementById('gameMsg').innerHTML = 'REACHED SAFE ORBIT!<br>PRESS ENTER TO PLAY AGAIN';
     } else {
       // Wave transition
       waveBonusAmount = wave * 100;
@@ -727,12 +735,29 @@ function drawPlayer() {
   const px = player.x - player.w / 2;
   const py = player.y - player.h / 2;
 
+  if (currentPilot === 'chai') {
+    drawChaiShip(player.x, player.y);
+  } else {
+    drawJordanShip(player.x, player.y, px, py);
+  }
+
+  // Engine glow
+  const flicker = Math.random() * 8;
+  ctx.fillStyle = '#ff4400';
+  ctx.beginPath();
+  ctx.moveTo(player.x - 8, player.y + player.h / 2);
+  ctx.lineTo(player.x, player.y + player.h / 2 + 10 + flicker);
+  ctx.lineTo(player.x + 8, player.y + player.h / 2);
+  ctx.fill();
+}
+
+function drawJordanShip(cx, cy, px, py) {
   // Ship body (triangle/wedge behind face)
   ctx.fillStyle = '#33ff33';
   ctx.beginPath();
-  ctx.moveTo(player.x, player.y - player.h / 2 - 8);
-  ctx.lineTo(player.x - player.w / 2 - 6, player.y + player.h / 2);
-  ctx.lineTo(player.x + player.w / 2 + 6, player.y + player.h / 2);
+  ctx.moveTo(cx, cy - player.h / 2 - 8);
+  ctx.lineTo(cx - player.w / 2 - 6, cy + player.h / 2);
+  ctx.lineTo(cx + player.w / 2 + 6, cy + player.h / 2);
   ctx.closePath();
   ctx.fill();
 
@@ -744,7 +769,7 @@ function drawPlayer() {
   // Face in circle
   ctx.save();
   ctx.beginPath();
-  ctx.arc(player.x, player.y, player.w / 2 - 2, 0, Math.PI * 2);
+  ctx.arc(cx, cy, player.w / 2 - 2, 0, Math.PI * 2);
   ctx.closePath();
   ctx.clip();
   if (faceImg.complete && faceImg.naturalWidth > 0) {
@@ -754,15 +779,91 @@ function drawPlayer() {
     ctx.fill();
   }
   ctx.restore();
+}
 
-  // Engine glow
-  const flicker = Math.random() * 8;
-  ctx.fillStyle = '#ff4400';
+function drawChaiShip(cx, cy) {
+  // Ship body (purple triangle for Chai)
+  ctx.fillStyle = '#cc66ff';
   ctx.beginPath();
-  ctx.moveTo(player.x - 8, player.y + player.h / 2);
-  ctx.lineTo(player.x, player.y + player.h / 2 + 10 + flicker);
-  ctx.lineTo(player.x + 8, player.y + player.h / 2);
+  ctx.moveTo(cx, cy - player.h / 2 - 8);
+  ctx.lineTo(cx - player.w / 2 - 6, cy + player.h / 2);
+  ctx.lineTo(cx + player.w / 2 + 6, cy + player.h / 2);
+  ctx.closePath();
   ctx.fill();
+
+  ctx.strokeStyle = '#aa44dd';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Cat face circle background
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.w / 2 - 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#d4a574';
+  ctx.fill();
+
+  // Cat ears (pointy triangles poking above the ship)
+  ctx.fillStyle = '#c4955a';
+  // Left ear
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy - 10);
+  ctx.lineTo(cx - 6, cy - 22);
+  ctx.lineTo(cx - 2, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+  // Right ear
+  ctx.beginPath();
+  ctx.moveTo(cx + 2, cy - 10);
+  ctx.lineTo(cx + 6, cy - 22);
+  ctx.lineTo(cx + 12, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner ears (pink)
+  ctx.fillStyle = '#ffaacc';
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 10);
+  ctx.lineTo(cx - 6, cy - 18);
+  ctx.lineTo(cx - 3, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, cy - 10);
+  ctx.lineTo(cx + 6, cy - 18);
+  ctx.lineTo(cx + 10, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#33ff33';
+  ctx.beginPath();
+  ctx.ellipse(cx - 5, cy - 2, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 5, cy - 2, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils (slits)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx - 6, cy - 4, 2, 5);
+  ctx.fillRect(cx + 4, cy - 4, 2, 5);
+
+  // Nose
+  ctx.fillStyle = '#ff9999';
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, cy + 4);
+  ctx.lineTo(cx + 2, cy + 4);
+  ctx.lineTo(cx, cy + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // Whiskers
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  // Left
+  ctx.beginPath(); ctx.moveTo(cx - 8, cy + 3); ctx.lineTo(cx - 18, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 8, cy + 5); ctx.lineTo(cx - 18, cy + 6); ctx.stroke();
+  // Right
+  ctx.beginPath(); ctx.moveTo(cx + 8, cy + 3); ctx.lineTo(cx + 18, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 8, cy + 5); ctx.lineTo(cx + 18, cy + 6); ctx.stroke();
 }
 
 function drawInvaders() {
@@ -809,9 +910,10 @@ function drawInvaders() {
 }
 
 function drawBullets() {
+  const bulletColor = currentPilot === 'chai' ? '#cc66ff' : '#33ff33';
   playerBullets.forEach(b => {
-    ctx.fillStyle = '#33ff33';
-    ctx.shadowColor = '#33ff33';
+    ctx.fillStyle = bulletColor;
+    ctx.shadowColor = bulletColor;
     ctx.shadowBlur = 8;
     ctx.fillRect(b.x - 1.5, b.y, 3, 12);
     ctx.shadowBlur = 0;
@@ -856,8 +958,8 @@ function drawWaitingOverlay() {
   ctx.shadowColor = '#33ff33';
   ctx.shadowBlur = 8;
   ctx.fillText('DEFENSE DRONES DETECTED', W / 2, H / 2 - 45);
-  ctx.fillText('BLAST THROUGH ' + MAX_WAVES + ' WAVES', W / 2, H / 2 - 20);
-  ctx.fillText('TO REACH SAFE ORBIT', W / 2, H / 2 + 5);
+  ctx.fillText('JORDAN TAKES THE CONTROLS', W / 2, H / 2 - 20);
+  ctx.fillText('BLAST THROUGH TO SAFE ORBIT', W / 2, H / 2 + 5);
 
   if (Math.floor(frame / 30) % 2 === 0) {
     ctx.font = '10px "Press Start 2P"';
@@ -873,29 +975,44 @@ function drawWaitingOverlay() {
 
 function drawWaveTransitionOverlay() {
   ctx.save();
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.fillRect(0, 0, W, H);
 
   ctx.textAlign = 'center';
-  ctx.font = '16px "Press Start 2P"';
-  ctx.fillStyle = '#33ff33';
-  ctx.shadowColor = '#33ff33';
-  ctx.shadowBlur = 15;
-  ctx.fillText('WAVE ' + wave + ' COMPLETE', W / 2, H / 2 - 20);
 
-  ctx.font = '10px "Press Start 2P"';
+  // "GREAT JOB" header
+  ctx.font = '12px "Press Start 2P"';
   ctx.fillStyle = '#ff0';
   ctx.shadowColor = '#ff0';
-  ctx.shadowBlur = 10;
-  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 + 15);
+  ctx.shadowBlur = 15;
+  ctx.fillText('GREAT JOB!', W / 2, H / 2 - 90);
 
-  if (waveTransitionTimer < WAVE_TRANSITION_DURATION / 2) {
-    ctx.font = '12px "Press Start 2P"';
-    ctx.fillStyle = '#fff';
-    ctx.shadowColor = '#fff';
-    const alpha = 0.5 + Math.sin(frame * 0.15) * 0.5;
-    ctx.globalAlpha = alpha;
-    ctx.fillText('WAVE ' + (wave + 1) + '/' + MAX_WAVES, W / 2, H / 2 + 50);
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText("WE'RE ALMOST THERE!", W / 2, H / 2 - 60);
+
+  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 - 35);
+
+  // Story text
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText('JORDAN NEEDS TO ATTEND TO', W / 2, H / 2 + 0);
+  ctx.fillText('SOME SHIP DAMAGE.', W / 2, H / 2 + 18);
+
+  // CHAI! TAKE THE WHEEL! - big and dramatic
+  if (waveTransitionTimer < WAVE_TRANSITION_DURATION * 0.65) {
+    ctx.font = '14px "Press Start 2P"';
+    ctx.fillStyle = '#cc66ff';
+    ctx.shadowColor = '#cc66ff';
+    ctx.shadowBlur = 20;
+    const pulse = 0.7 + Math.sin(frame * 0.12) * 0.3;
+    ctx.globalAlpha = pulse;
+    ctx.fillText('CHAI!', W / 2, H / 2 + 55);
+    ctx.fillText('TAKE THE WHEEL!', W / 2, H / 2 + 80);
     ctx.globalAlpha = 1;
   }
 
@@ -919,8 +1036,9 @@ function drawGameOverOverlay() {
   ctx.font = '8px "Press Start 2P"';
   ctx.fillStyle = '#ff0';
   ctx.shadowBlur = 8;
-  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 5);
-  ctx.fillText('WAVE: ' + wave + '/' + MAX_WAVES, W / 2, H / 2 + 25);
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  ctx.fillText('PILOT: ' + pilotName, W / 2, H / 2 + 5);
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 25);
 
   if (score >= highScore && score > 0) {
     ctx.fillStyle = '#33ff33';
