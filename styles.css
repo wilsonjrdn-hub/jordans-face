@@ -1519,6 +1519,64 @@ header {
   color: #88aa88;
 }
 
+/* ---- LEVEL NEON COLORS ---- */
+
+/* Level 1 — Green (default, already styled) */
+.level-green:not(.locked) { border-color: #2a5a2a; }
+.level-green:not(.locked) .game-name { color: #33ff33; }
+.level-green:not(.locked) .status { color: #33ff33; }
+.level-green:not(.locked):hover { border-color: #33ff33; background: rgba(51, 255, 51, 0.08); }
+.level-green:not(.locked):hover .game-name { text-shadow: 0 0 8px #33ff33; }
+
+/* Level 2 — Cyan */
+.level-cyan:not(.locked) { border-color: #1a4a5a; }
+.level-cyan:not(.locked) .game-name { color: #00ffff; }
+.level-cyan:not(.locked) .status { color: #00ffff; }
+.level-cyan:not(.locked) .game-desc { color: #447788; }
+.level-cyan:not(.locked):hover { border-color: #00ffff; background: rgba(0, 255, 255, 0.08); }
+.level-cyan:not(.locked):hover .game-name { text-shadow: 0 0 8px #00ffff; }
+.level-cyan:not(.locked):hover .game-desc { color: #66aaaa; }
+
+/* Level 3 — Orange */
+.level-orange:not(.locked) { border-color: #5a3a1a; }
+.level-orange:not(.locked) .game-name { color: #ff8800; }
+.level-orange:not(.locked) .status { color: #ff8800; }
+.level-orange:not(.locked) .game-desc { color: #886644; }
+.level-orange:not(.locked):hover { border-color: #ff8800; background: rgba(255, 136, 0, 0.08); }
+.level-orange:not(.locked):hover .game-name { text-shadow: 0 0 8px #ff8800; }
+.level-orange:not(.locked):hover .game-desc { color: #aa8866; }
+
+/* Level 4 — Pink/Magenta */
+.level-pink:not(.locked) { border-color: #5a1a3a; }
+.level-pink:not(.locked) .game-name { color: #ff3399; }
+.level-pink:not(.locked) .status { color: #ff3399; }
+.level-pink:not(.locked) .game-desc { color: #884466; }
+.level-pink:not(.locked):hover { border-color: #ff3399; background: rgba(255, 51, 153, 0.08); }
+.level-pink:not(.locked):hover .game-name { text-shadow: 0 0 8px #ff3399; }
+.level-pink:not(.locked):hover .game-desc { color: #aa6688; }
+
+/* Level 5 — Purple */
+.level-purple:not(.locked) { border-color: #3a1a5a; }
+.level-purple:not(.locked) .game-name { color: #cc66ff; }
+.level-purple:not(.locked) .status { color: #cc66ff; }
+.level-purple:not(.locked) .game-desc { color: #775588; }
+.level-purple:not(.locked):hover { border-color: #cc66ff; background: rgba(204, 102, 255, 0.08); }
+.level-purple:not(.locked):hover .game-name { text-shadow: 0 0 8px #cc66ff; }
+.level-purple:not(.locked):hover .game-desc { color: #9977aa; }
+
+/* Level 6 — Yellow */
+.level-yellow:not(.locked) { border-color: #5a5a1a; }
+.level-yellow:not(.locked) .game-name { color: #ffff00; }
+.level-yellow:not(.locked) .status { color: #ffff00; }
+.level-yellow:not(.locked) .game-desc { color: #888866; }
+.level-yellow:not(.locked):hover { border-color: #ffff00; background: rgba(255, 255, 0, 0.08); }
+.level-yellow:not(.locked):hover .game-name { text-shadow: 0 0 8px #ffff00; }
+.level-yellow:not(.locked):hover .game-desc { color: #aaaa88; }
+
+/* Locked levels keep their dim color regardless of level class */
+.menu-item.locked .game-name { color: #555; }
+.menu-item.locked .game-desc { color: #333; }
+
 /* ---- FOOTER ---- */
 footer {
   padding: 20px;
