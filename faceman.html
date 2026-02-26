@@ -982,6 +982,67 @@ function drawCutscene() {
 }
 
 // ==========================================
+//  MISSION BRIEFING (waiting state overlay)
+// ==========================================
+function drawMissionBriefing() {
+  const W = canvas.width, H = canvas.height;
+
+  // Dark overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.textAlign = 'center';
+
+  // Title
+  ctx.font = '11px "Press Start 2P"';
+  ctx.fillStyle = '#ff3366';
+  ctx.shadowColor = '#ff3366';
+  ctx.shadowBlur = 12;
+  ctx.fillText('MISSION BRIEFING', W / 2, H / 2 - 80);
+  ctx.shadowBlur = 0;
+
+  // Divider
+  ctx.strokeStyle = 'rgba(51, 255, 51, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 100, H / 2 - 65);
+  ctx.lineTo(W / 2 + 100, H / 2 - 65);
+  ctx.stroke();
+
+  // Instructions
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 5;
+  ctx.fillText('JERGUSIA-7 IS ABOUT', W / 2, H / 2 - 40);
+  ctx.fillText('TO EXPLODE!', W / 2, H / 2 - 25);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ffcc00';
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillText('GRAB ALL YOUR STUFF TO', W / 2, H / 2 + 0);
+  ctx.fillText('REVEAL THE ESCAPE POD', W / 2, H / 2 + 15);
+
+  ctx.fillStyle = '#aaaaaa';
+  ctx.font = '5px "Press Start 2P"';
+  ctx.fillText('THEN GET TO THE POD', W / 2, H / 2 + 35);
+  ctx.fillText('BEFORE TIME RUNS OUT!', W / 2, H / 2 + 48);
+
+  // Blinking prompt
+  if (Math.floor(frame / 30) % 2 === 0) {
+    ctx.font = '6px "Press Start 2P"';
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.shadowBlur = 8;
+    ctx.fillText('PRESS ENTER OR TAP', W / 2, H / 2 + 80);
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.restore();
+}
+
+// ==========================================
 //  ESCAPE CUTSCENE (after Level 1 win)
 // ==========================================
 function initEscapeStars() {
@@ -1920,6 +1981,11 @@ function gameLoop(timestamp) {
   // Cutscene overlay
   if (gameState === 'cutscene') {
     drawCutscene();
+  }
+
+  // Mission briefing overlay (waiting state)
+  if (gameState === 'waiting') {
+    drawMissionBriefing();
   }
 
   ctx.restore();
