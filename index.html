@@ -253,12 +253,12 @@
         </div>
         <span class="status">BEAT LEVEL 1 TO UNLOCK</span>
       </li>
-      <li class="menu-item locked">
+      <li class="menu-item locked" id="level3">
         <div class="game-info">
           <span class="game-name">LEVEL 3: METEOR MAYHEM</span>
-          <span class="game-desc">Dodge and destroy meteors to survive the shower.</span>
+          <span class="game-desc">Dodge meteors and survive the asteroid field.</span>
         </div>
-        <span class="status">COMING SOON</span>
+        <span class="status">BEAT LEVEL 2 TO UNLOCK</span>
       </li>
       <li class="menu-item locked">
         <div class="game-info">
@@ -842,6 +842,14 @@
         if (el) {
           el.classList.remove('locked');
           el.setAttribute('onclick', "window.location='invaders.html'");
+          el.querySelector('.status').textContent = 'PLAY NOW!';
+        }
+      }
+      if (localStorage.getItem('level-2-complete')) {
+        const el = document.getElementById('level3');
+        if (el) {
+          el.classList.remove('locked');
+          el.setAttribute('onclick', "window.location='meteors.html'");
           el.querySelector('.status').textContent = 'PLAY NOW!';
         }
       }

@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>METEOR MAYHEM | Jordan's Face .com</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #33ff33;
+      font-family: 'Press Start 2P', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .scanlines {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    header {
+      text-align: center;
+      padding: 15px 10px 5px;
+    }
+
+    .title {
+      font-size: clamp(0.7rem, 2.5vw, 1.2rem);
+      color: #ff0;
+      text-shadow: 0 0 10px #ff0, 0 0 20px #ffa500;
+    }
+
+    .title a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .title a:hover {
+      text-shadow: 0 0 15px #ff0, 0 0 30px #ffa500, 0 0 45px #ff0;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      padding: 10px 5px;
+      font-size: 0.55rem;
+    }
+
+    .score-label { color: #ff0; }
+    .score-value { color: #fff; margin-left: 5px; }
+    .lives-display { display: flex; gap: 5px; align-items: center; }
+    .life-icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .life-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #gameCanvas {
+      border: 3px solid #333;
+      box-shadow: 0 0 20px rgba(51,255,51,0.2);
+      max-width: calc(100vw - 20px);
+      height: auto;
+    }
+
+    .game-msg {
+      font-size: 0.6rem;
+      color: #33ff33;
+      margin-top: 12px;
+      text-align: center;
+      line-height: 2;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .controls-info {
+      font-size: 0.45rem;
+      color: #555;
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* D-pad (4-directional, from faceman) */
+    .dpad {
+      display: none;
+      margin-top: 15px;
+      position: relative;
+      width: 140px;
+      height: 140px;
+    }
+
+    .dpad-btn {
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      background: rgba(51,255,51,0.15);
+      border: 2px solid #33ff33;
+      border-radius: 6px;
+      color: #33ff33;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .dpad-btn:active { background: rgba(51,255,51,0.35); }
+
+    .dpad-up    { top: 0;   left: 48px; }
+    .dpad-down  { bottom: 0; left: 48px; }
+    .dpad-left  { top: 48px; left: 0; }
+    .dpad-right { top: 48px; right: 0; }
+
+    @media (max-width: 600px) {
+      .dpad { display: block; }
+      .hud {
+        font-size: 0.4rem;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        padding: 5px;
+      }
+      header { padding: 8px 5px 2px; }
+    }
+
+    @media (pointer: coarse) {
+      .dpad { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <h1 class="title"><a href="index.html">METEOR MAYHEM</a></h1>
+  </header>
+
+  <div class="hud">
+    <div>
+      <span class="score-label">SCORE:</span>
+      <span class="score-value" id="score">0</span>
+    </div>
+    <div>
+      <span class="score-label">HI:</span>
+      <span class="score-value" id="highScoreDisplay">0</span>
+    </div>
+    <div>
+      <span class="score-label">WAVE:</span>
+      <span class="score-value" id="wave">JORDAN 1/2</span>
+    </div>
+    <div>
+      <span class="score-label">TIME:</span>
+      <span class="score-value" id="timeDisplay">45</span>
+    </div>
+    <div class="lives-display">
+      <span class="score-label">LIVES:</span>
+      <span id="livesIcons"></span>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+  <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
+  <p class="controls-info">NAVIGATE THE ASTEROID FIELD &mdash; ARROWS/WASD TO DODGE</p>
+
+  <div class="dpad" id="dpad">
+    <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+    <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+    <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+    <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+  </div>
+
+<script>
+// ==========================================
+//  METEOR MAYHEM
+//  Survival dodging game — dodge meteors!
+// ==========================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const W = 504;
+const H = 550;
+canvas.width = W;
+canvas.height = H;
+
+// Load face image
+const faceImg = new Image();
+faceImg.src = 'images/jordan.jpeg';
+
+// ---- Game Constants ----
+const MAX_WAVES = 2;
+const WAVE_DURATION = 45; // seconds per wave
+
+// ---- Game State ----
+let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win
+let score = 0;
+let highScore = parseInt(localStorage.getItem('meteors-high') || '0');
+let lives = 3;
+let wave = 1;
+let frame = 0;
+let shakeTimer = 0;
+let playerFlashTimer = 0;
+let waveTransitionTimer = 0;
+const WAVE_TRANSITION_DURATION = 240;
+let waveBonusAmount = 0;
+let currentPilot = 'jordan';
+
+// ---- Timer ----
+let waveTimeRemaining = WAVE_DURATION;
+let lastTimestamp = 0;
+let timerWarningPlayed = false;
+
+// ---- Scoring ----
+let scoreAccumulator = 0; // accumulates fractional score per frame
+
+// ==========================================
+//  AUDIO
+// ==========================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playPlayerHitSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.35);
+}
+
+function playWaveCompleteSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.12);
+    gain.gain.setValueAtTime(0.06, t + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.12);
+    osc.stop(t + i * 0.12 + 0.35);
+  });
+}
+
+function playWinSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047, 1319, 1568];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.06, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.1);
+    osc.stop(t + i * 0.1 + 0.45);
+  });
+}
+
+function playGameOverSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 1.6);
+}
+
+function playMeteorPassSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Quick filtered noise whoosh
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.08);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 3);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(2000, t);
+  filter.frequency.exponentialRampToValueAtTime(500, t + 0.08);
+  filter.Q.value = 2;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.04, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  src.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  src.start(t);
+}
+
+function playTimerWarningBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1200, t);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+// ---- Player (ship) ----
+const player = {
+  x: W / 2,
+  y: H - 60,
+  w: 36,
+  h: 36,
+  speed: 3.5,
+};
+
+// ---- Input ----
+const keys = {};
+
+document.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+      startGame();
+    }
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+});
+
+// Mobile d-pad controls
+let mobileUp = false;
+let mobileDown = false;
+let mobileLeft = false;
+let mobileRight = false;
+
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+  const dir = btn.dataset.dir;
+
+  const start = (e) => {
+    e.preventDefault();
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') startGame();
+    if (dir === 'up') mobileUp = true;
+    if (dir === 'down') mobileDown = true;
+    if (dir === 'left') mobileLeft = true;
+    if (dir === 'right') mobileRight = true;
+  };
+
+  const end = (e) => {
+    e.preventDefault();
+    if (dir === 'up') mobileUp = false;
+    if (dir === 'down') mobileDown = false;
+    if (dir === 'left') mobileLeft = false;
+    if (dir === 'right') mobileRight = false;
+  };
+
+  btn.addEventListener('touchstart', start, { passive: false });
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('touchend', end, { passive: false });
+  btn.addEventListener('mouseup', end);
+});
+
+canvas.addEventListener('click', () => {
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') startGame();
+});
+
+// ---- Meteors ----
+let meteors = [];
+
+// ---- Particles ----
+let particles = [];
+
+// ---- Stars background ----
+const stars = [];
+for (let i = 0; i < 80; i++) {
+  stars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    size: Math.random() * 2 + 0.5,
+    speed: Math.random() * 0.5 + 0.2,
+    brightness: Math.random(),
+  });
+}
+
+// ==========================================
+//  METEOR GENERATION
+// ==========================================
+function createMeteor() {
+  const isWave2 = wave === 2;
+  const minSize = isWave2 ? 6 : 8;
+  const maxSize = isWave2 ? 35 : 30;
+  const radius = minSize + Math.random() * (maxSize - minSize);
+
+  const minSpeed = isWave2 ? 2 : 1.5;
+  const maxSpeed = isWave2 ? 5.5 : 4;
+  const speed = minSpeed + Math.random() * (maxSpeed - minSpeed);
+
+  const angleVariance = isWave2 ? 0.5 : 0.3;
+  const angle = Math.PI / 2 + (Math.random() - 0.5) * angleVariance;
+
+  // Generate jagged rocky polygon vertices
+  const numVertices = 8 + Math.floor(Math.random() * 5); // 8-12 vertices
+  const vertices = [];
+  for (let i = 0; i < numVertices; i++) {
+    const a = (Math.PI * 2 / numVertices) * i;
+    const radiusOffset = 0.7 + Math.random() * 0.6; // 0.7x to 1.3x
+    vertices.push({
+      angle: a,
+      dist: radius * radiusOffset,
+    });
+  }
+
+  // Crater details
+  const numCraters = Math.floor(Math.random() * 3);
+  const craters = [];
+  for (let i = 0; i < numCraters; i++) {
+    const ca = Math.random() * Math.PI * 2;
+    const cd = Math.random() * radius * 0.5;
+    craters.push({
+      x: Math.cos(ca) * cd,
+      y: Math.sin(ca) * cd,
+      r: 2 + Math.random() * (radius * 0.2),
+    });
+  }
+
+  // Color palette - browns and grays
+  const colors = ['#8B7355', '#6B5B45', '#7A6B5A', '#9E8E7E', '#5C4E3C', '#A0A0A0', '#808080'];
+  const color = colors[Math.floor(Math.random() * colors.length)];
+
+  return {
+    x: Math.random() * (W + 40) - 20,
+    y: -radius * 2 - Math.random() * 40,
+    radius,
+    speed,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    rotation: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.06,
+    vertices,
+    craters,
+    color,
+    passed: false, // for near-miss tracking
+  };
+}
+
+// Difficulty ramping: spawn interval decreases over time within each wave
+function getSpawnInterval() {
+  const progress = 1 - (waveTimeRemaining / WAVE_DURATION); // 0 at start, 1 at end
+  if (wave === 1) {
+    return Math.floor(30 - progress * 18); // 30 → 12
+  } else {
+    return Math.floor(20 - progress * 12); // 20 → 8
+  }
+}
+
+function getMaxMeteors() {
+  return wave === 1 ? 15 : 22;
+}
+
+// ==========================================
+//  INIT
+// ==========================================
+function startGame() {
+  ensureAudio();
+  score = 0;
+  lives = 3;
+  wave = 1;
+  currentPilot = 'jordan';
+  player.x = W / 2;
+  player.y = H - 60;
+  playerFlashTimer = 0;
+  meteors = [];
+  particles = [];
+  waveTimeRemaining = WAVE_DURATION;
+  lastTimestamp = 0;
+  timerWarningPlayed = false;
+  scoreAccumulator = 0;
+  gameState = 'playing';
+  document.getElementById('gameMsg').textContent = '';
+  updateHUD();
+}
+
+function nextWave() {
+  wave++;
+  currentPilot = 'chai';
+  meteors = [];
+  particles = [];
+  player.x = W / 2;
+  player.y = H - 60;
+  playerFlashTimer = 0;
+  waveTimeRemaining = WAVE_DURATION;
+  timerWarningPlayed = false;
+  scoreAccumulator = 0;
+  updateHUD();
+}
+
+// ==========================================
+//  HUD
+// ==========================================
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  document.getElementById('wave').textContent = pilotName + ' ' + wave + '/' + MAX_WAVES;
+  document.getElementById('highScoreDisplay').textContent = highScore;
+  document.getElementById('timeDisplay').textContent = Math.ceil(waveTimeRemaining);
+  let iconsHtml = '';
+  for (let i = 0; i < lives; i++) {
+    if (currentPilot === 'chai') {
+      iconsHtml += '<span class="life-icon" style="background:#222;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">&#128049;</span> ';
+    } else {
+      iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+    }
+  }
+  document.getElementById('livesIcons').innerHTML = iconsHtml;
+}
+
+// ==========================================
+//  UPDATE
+// ==========================================
+function updatePlayer() {
+  const left = keys['ArrowLeft'] || keys['a'] || keys['A'] || mobileLeft;
+  const right = keys['ArrowRight'] || keys['d'] || keys['D'] || mobileRight;
+  const up = keys['ArrowUp'] || keys['w'] || keys['W'] || mobileUp;
+  const down = keys['ArrowDown'] || keys['s'] || keys['S'] || mobileDown;
+
+  if (left) player.x -= player.speed;
+  if (right) player.x += player.speed;
+  if (up) player.y -= player.speed;
+  if (down) player.y += player.speed;
+
+  // Clamp to canvas bounds
+  player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
+  player.y = Math.max(player.h / 2 + 8, Math.min(H - player.h / 2, player.y));
+
+  if (playerFlashTimer > 0) playerFlashTimer--;
+}
+
+function updateMeteors() {
+  // Spawn new meteors
+  const interval = getSpawnInterval();
+  if (frame % interval === 0 && meteors.length < getMaxMeteors()) {
+    meteors.push(createMeteor());
+  }
+
+  // Update positions
+  meteors.forEach(m => {
+    m.x += m.vx;
+    m.y += m.vy;
+    m.rotation += m.rotSpeed;
+  });
+
+  // Check near-misses and remove off-screen
+  meteors = meteors.filter(m => {
+    if (m.y > H + m.radius * 2 + 20) {
+      // Meteor passed off screen
+      if (!m.passed && Math.random() < 0.15) {
+        playMeteorPassSound();
+      }
+      return false;
+    }
+    if (m.x < -m.radius * 3 || m.x > W + m.radius * 3) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function updateTimer(dt) {
+  if (gameState !== 'playing') return;
+
+  waveTimeRemaining -= dt;
+
+  // Score: +10 per second survived
+  scoreAccumulator += dt * 10;
+  if (scoreAccumulator >= 1) {
+    const points = Math.floor(scoreAccumulator);
+    score += points;
+    scoreAccumulator -= points;
+  }
+
+  // Timer warning beeps at < 10 seconds
+  if (waveTimeRemaining <= 10 && waveTimeRemaining > 0) {
+    if (!timerWarningPlayed || Math.floor(waveTimeRemaining) !== Math.floor(waveTimeRemaining + dt)) {
+      if (frame % 30 === 0) {
+        playTimerWarningBeep();
+      }
+      timerWarningPlayed = true;
+    }
+  }
+
+  // Wave complete!
+  if (waveTimeRemaining <= 0) {
+    waveTimeRemaining = 0;
+    if (wave >= MAX_WAVES) {
+      // WIN!
+      score += 1000; // Final bonus
+      gameState = 'win';
+      localStorage.setItem('level-3-complete', 'true');
+      playWinSound();
+      saveHighScore();
+      updateHUD();
+      document.getElementById('gameMsg').innerHTML = 'SURVIVED THE STORM!<br>PRESS ENTER TO PLAY AGAIN';
+    } else {
+      // Wave transition
+      waveBonusAmount = 500;
+      score += waveBonusAmount;
+      gameState = 'waveTransition';
+      waveTransitionTimer = WAVE_TRANSITION_DURATION;
+      playWaveCompleteSound();
+      saveHighScore();
+      updateHUD();
+    }
+  }
+
+  updateHUD();
+}
+
+function checkCollisions() {
+  if (playerFlashTimer > 0) return; // Invulnerable during flash
+
+  const px = player.x;
+  const py = player.y;
+  const pr = player.w / 2 * 0.7; // 0.7x forgiveness factor
+
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    const dx = px - m.x;
+    const dy = py - m.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const minDist = pr + m.radius * 0.7; // forgiveness on meteor too
+
+    if (dist < minDist) {
+      // HIT!
+      lives--;
+      shakeTimer = 15;
+      playerFlashTimer = 90; // 1.5 sec invulnerability
+      spawnExplosion(player.x, player.y, -1);
+      playPlayerHitSound();
+      meteors.splice(i, 1); // Remove the meteor that hit
+      updateHUD();
+
+      if (lives <= 0) {
+        gameState = 'gameover';
+        playGameOverSound();
+        saveHighScore();
+        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+      }
+      return; // Only one hit per frame
+    }
+  }
+}
+
+function saveHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('meteors-high', highScore);
+    updateHUD();
+  }
+}
+
+// ---- Particles ----
+function spawnExplosion(x, y, type) {
+  const colors = ['#ff0', '#ff4400', '#ff0000', '#ffaa00', '#fff'];
+  for (let i = 0; i < 12; i++) {
+    const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.5;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 30 + Math.random() * 20,
+      maxLife: 50,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+function updateParticles() {
+  particles.forEach(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05;
+    p.life--;
+  });
+  particles = particles.filter(p => p.life > 0);
+}
+
+// ==========================================
+//  DRAWING
+// ==========================================
+function drawStars() {
+  stars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    const flicker = 0.5 + Math.sin(frame * 0.05 + s.brightness * 10) * 0.3;
+    ctx.fillStyle = `rgba(255,255,255,${flicker})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
+}
+
+function drawTimerBar() {
+  const progress = waveTimeRemaining / WAVE_DURATION;
+  const barWidth = W - 20;
+  const barHeight = 6;
+  const x = 10;
+  const y = 4;
+
+  // Background
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(x, y, barWidth, barHeight);
+
+  // Fill — green to yellow to red
+  let r, g;
+  if (progress > 0.5) {
+    r = Math.floor(255 * (1 - (progress - 0.5) * 2));
+    g = 255;
+  } else {
+    r = 255;
+    g = Math.floor(255 * progress * 2);
+  }
+  const color = `rgb(${r},${g},0)`;
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 6;
+  ctx.fillRect(x, y, barWidth * progress, barHeight);
+  ctx.shadowBlur = 0;
+
+  // Flash red when low
+  if (waveTimeRemaining <= 10 && Math.floor(frame / 15) % 2 === 0) {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.15)';
+    ctx.fillRect(x, y, barWidth, barHeight);
+  }
+}
+
+function drawPlayer() {
+  // Flash effect when hit
+  if (playerFlashTimer > 0 && Math.floor(frame / 3) % 2 === 0) return;
+
+  const px = player.x - player.w / 2;
+  const py = player.y - player.h / 2;
+
+  if (currentPilot === 'chai') {
+    drawChaiShip(player.x, player.y);
+  } else {
+    drawJordanShip(player.x, player.y, px, py);
+  }
+
+  // Engine glow
+  const flicker = Math.random() * 8;
+  ctx.fillStyle = '#ff4400';
+  ctx.beginPath();
+  ctx.moveTo(player.x - 8, player.y + player.h / 2);
+  ctx.lineTo(player.x, player.y + player.h / 2 + 10 + flicker);
+  ctx.lineTo(player.x + 8, player.y + player.h / 2);
+  ctx.fill();
+}
+
+function drawJordanShip(cx, cy, px, py) {
+  // Ship body (triangle/wedge behind face)
+  ctx.fillStyle = '#33ff33';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - player.h / 2 - 8);
+  ctx.lineTo(cx - player.w / 2 - 6, cy + player.h / 2);
+  ctx.lineTo(cx + player.w / 2 + 6, cy + player.h / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Ship outline glow
+  ctx.strokeStyle = '#00ff00';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Face in circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.w / 2 - 2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  if (faceImg.complete && faceImg.naturalWidth > 0) {
+    ctx.drawImage(faceImg, px + 2, py + 2, player.w - 4, player.h - 4);
+  } else {
+    ctx.fillStyle = '#33ff33';
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawChaiShip(cx, cy) {
+  // Ship body (purple triangle for Chai)
+  ctx.fillStyle = '#cc66ff';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - player.h / 2 - 8);
+  ctx.lineTo(cx - player.w / 2 - 6, cy + player.h / 2);
+  ctx.lineTo(cx + player.w / 2 + 6, cy + player.h / 2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#aa44dd';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Cat face circle background
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.w / 2 - 2, 0, Math.PI * 2);
+  ctx.fillStyle = '#d4a574';
+  ctx.fill();
+
+  // Cat ears
+  ctx.fillStyle = '#c4955a';
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy - 10);
+  ctx.lineTo(cx - 6, cy - 22);
+  ctx.lineTo(cx - 2, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 2, cy - 10);
+  ctx.lineTo(cx + 6, cy - 22);
+  ctx.lineTo(cx + 12, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner ears (pink)
+  ctx.fillStyle = '#ffaacc';
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, cy - 10);
+  ctx.lineTo(cx - 6, cy - 18);
+  ctx.lineTo(cx - 3, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, cy - 10);
+  ctx.lineTo(cx + 6, cy - 18);
+  ctx.lineTo(cx + 10, cy - 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes
+  ctx.fillStyle = '#33ff33';
+  ctx.beginPath();
+  ctx.ellipse(cx - 5, cy - 2, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(cx + 5, cy - 2, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupils (slits)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx - 6, cy - 4, 2, 5);
+  ctx.fillRect(cx + 4, cy - 4, 2, 5);
+
+  // Nose
+  ctx.fillStyle = '#ff9999';
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, cy + 4);
+  ctx.lineTo(cx + 2, cy + 4);
+  ctx.lineTo(cx, cy + 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // Whiskers
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 8, cy + 3); ctx.lineTo(cx - 18, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 8, cy + 5); ctx.lineTo(cx - 18, cy + 6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 8, cy + 3); ctx.lineTo(cx + 18, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 8, cy + 5); ctx.lineTo(cx + 18, cy + 6); ctx.stroke();
+}
+
+function drawMeteors() {
+  meteors.forEach(m => {
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.rotation);
+
+    // Jagged rocky polygon
+    ctx.fillStyle = m.color;
+    ctx.beginPath();
+    const v0 = m.vertices[0];
+    ctx.moveTo(Math.cos(v0.angle) * v0.dist, Math.sin(v0.angle) * v0.dist);
+    for (let i = 1; i < m.vertices.length; i++) {
+      const v = m.vertices[i];
+      ctx.lineTo(Math.cos(v.angle) * v.dist, Math.sin(v.angle) * v.dist);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Darker outline
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Highlight edge (top-left light source feel)
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const h0 = m.vertices[0];
+    ctx.moveTo(Math.cos(h0.angle) * h0.dist, Math.sin(h0.angle) * h0.dist);
+    for (let i = 1; i < Math.floor(m.vertices.length / 3); i++) {
+      const v = m.vertices[i];
+      ctx.lineTo(Math.cos(v.angle) * v.dist, Math.sin(v.angle) * v.dist);
+    }
+    ctx.stroke();
+
+    // Craters
+    m.craters.forEach(c => {
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fill();
+      // Crater rim highlight
+      ctx.beginPath();
+      ctx.arc(c.x - c.r * 0.2, c.y - c.r * 0.2, c.r * 0.8, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
+
+    ctx.restore();
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ==========================================
+//  CANVAS OVERLAYS
+// ==========================================
+function drawWaitingOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 15;
+  ctx.fillText('ASTEROID FIELD AHEAD', W / 2, H / 2 - 80);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('JORDAN TAKES THE CONTROLS', W / 2, H / 2 - 45);
+  ctx.fillText('DODGE EVERYTHING TO SURVIVE', W / 2, H / 2 - 20);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#aaa';
+  ctx.shadowBlur = 0;
+  ctx.fillText('SURVIVE 45 SECONDS PER WAVE', W / 2, H / 2 + 5);
+  ctx.fillText('MOVE IN ALL DIRECTIONS', W / 2, H / 2 + 22);
+
+  if (Math.floor(frame / 30) % 2 === 0) {
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 10;
+    ctx.fillText('PRESS ENTER TO LAUNCH', W / 2, H / 2 + 60);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWaveTransitionOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+
+  // "GREAT JOB" header
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 15;
+  ctx.fillText('GREAT JOB!', W / 2, H / 2 - 90);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText("WAVE 1 SURVIVED!", W / 2, H / 2 - 60);
+
+  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 - 35);
+
+  // Story text
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText("JORDAN'S ARMS ARE TIRED", W / 2, H / 2 + 0);
+  ctx.fillText('FROM ALL THAT DODGING.', W / 2, H / 2 + 18);
+
+  // CHAI! TAKE THE WHEEL!
+  if (waveTransitionTimer < WAVE_TRANSITION_DURATION * 0.65) {
+    ctx.font = '14px "Press Start 2P"';
+    ctx.fillStyle = '#cc66ff';
+    ctx.shadowColor = '#cc66ff';
+    ctx.shadowBlur = 20;
+    const pulse = 0.7 + Math.sin(frame * 0.12) * 0.3;
+    ctx.globalAlpha = pulse;
+    ctx.fillText('CHAI!', W / 2, H / 2 + 55);
+    ctx.fillText('TAKE THE WHEEL!', W / 2, H / 2 + 80);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawGameOverOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillStyle = '#ff0000';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20;
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 30);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowBlur = 8;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  ctx.fillText('PILOT: ' + pilotName, W / 2, H / 2 + 5);
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 25);
+
+  if (score >= highScore && score > 0) {
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.fillText('NEW HIGH SCORE!', W / 2, H / 2 + 50);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWinOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 20;
+  ctx.fillText('SURVIVED THE STORM!', W / 2, H / 2 - 50);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowBlur = 10;
+  ctx.fillText('JORDAN AND CHAI MADE IT', W / 2, H / 2 - 20);
+  ctx.fillText('THROUGH THE ASTEROID FIELD', W / 2, H / 2 + 0);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillText('FINAL SCORE: ' + score, W / 2, H / 2 + 30);
+
+  if (score >= highScore && score > 0) {
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.fillText('NEW HIGH SCORE!', W / 2, H / 2 + 55);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+// ==========================================
+//  MAIN LOOP
+// ==========================================
+function gameLoop(timestamp) {
+  if (lastTimestamp === 0) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+  lastTimestamp = timestamp;
+
+  frame++;
+
+  // Screen shake
+  ctx.save();
+  if (shakeTimer > 0) {
+    shakeTimer--;
+    const sx = (Math.random() - 0.5) * shakeTimer;
+    const sy = (Math.random() - 0.5) * shakeTimer;
+    ctx.translate(sx, sy);
+  }
+
+  // Clear
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars();
+
+  if (gameState === 'playing') {
+    updatePlayer();
+    updateMeteors();
+    checkCollisions();
+    updateTimer(dt);
+    updateParticles();
+  }
+
+  if (gameState === 'waveTransition') {
+    waveTransitionTimer--;
+    updateParticles();
+    // Still move existing meteors off screen during transition
+    meteors.forEach(m => {
+      m.x += m.vx;
+      m.y += m.vy;
+      m.rotation += m.rotSpeed;
+    });
+    meteors = meteors.filter(m => m.y < H + 100);
+    if (waveTransitionTimer <= 0) {
+      nextWave();
+      gameState = 'playing';
+    }
+  }
+
+  // Victory celebration particles
+  if (gameState === 'win' && frame % 5 === 0) {
+    spawnExplosion(Math.random() * W, Math.random() * H * 0.6, 0);
+  }
+  if (gameState === 'win') {
+    updateParticles();
+  }
+
+  // Draw everything
+  drawMeteors();
+  drawPlayer();
+  drawParticles();
+
+  // Timer bar (only during playing)
+  if (gameState === 'playing') {
+    drawTimerBar();
+  }
+
+  // Canvas overlays
+  if (gameState === 'waiting') {
+    drawWaitingOverlay();
+  } else if (gameState === 'waveTransition') {
+    drawWaveTransitionOverlay();
+  } else if (gameState === 'gameover') {
+    drawGameOverOverlay();
+  } else if (gameState === 'win') {
+    drawWinOverlay();
+  }
+
+  ctx.restore();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// ==========================================
+//  BOOT
+// ==========================================
+updateHUD();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
