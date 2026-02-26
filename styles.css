@@ -1329,8 +1329,9 @@ header {
 }
 
 .menu-title {
-  font-size: clamp(0.6rem, 2vw, 0.9rem);
+  font-size: clamp(0.8rem, 2.8vw, 1.2rem);
   color: #ff0;
+  text-shadow: 0 0 10px rgba(255, 255, 0, 0.4);
   margin-bottom: 20px;
 }
 
