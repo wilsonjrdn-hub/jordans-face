@@ -191,6 +191,10 @@
       <span class="score-value" id="timer">90</span>
     </div>
     <div>
+      <span class="score-label">ITEMS:</span>
+      <span class="score-value" id="itemCount">0/0</span>
+    </div>
+    <div>
       <span class="score-label">HIGH:</span>
       <span class="score-value" id="highScore">0</span>
     </div>
@@ -326,6 +330,8 @@ let shakeTimer = 0;
 let map = [];
 let startPos = { x: 1, y: 19 };
 let goalPos = { x: 19, y: 1 };
+let podRevealed = false;
+let podRevealFlash = 0; // countdown for reveal flash effect
 
 // Player
 let player = {
@@ -478,6 +484,25 @@ function playTimerWarningBeep() {
   osc.stop(t + 0.12);
 }
 
+function playPodRevealSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Dramatic ascending reveal
+  const notes = [392, 523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t + i * 0.08);
+    gain.gain.setValueAtTime(0.07, t + i * 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.08);
+    osc.stop(t + i * 0.08 + 0.35);
+  });
+}
+
 function playSlowSound() {
   ensureAudio();
   const t = audioCtx.currentTime;
@@ -509,7 +534,9 @@ function loadStage(stageNum) {
   particles = [];
   shakeTimer = 0;
 
-  // Find start and goal positions, init collectibles and hazards
+  // Find start position, init collectibles and hazards
+  // Collect floor tiles for random pod placement
+  const floorTiles = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const tile = map[r][c];
@@ -517,8 +544,8 @@ function loadStage(stageNum) {
         startPos = { x: c, y: r };
         map[r][c] = 0;
       } else if (tile === 3) {
-        goalPos = { x: c, y: r };
-        // Keep 3 in map so we can detect goal
+        // Remove hardcoded goal — we'll place it randomly
+        map[r][c] = 0;
       } else if (tile === 4) {
         const type = config.collectibleTypes[collectibles.length % config.collectibleTypes.length];
         collectibles.push({ x: c, y: r, type: type, collected: false });
@@ -539,6 +566,32 @@ function loadStage(stageNum) {
       }
     }
   }
+
+  // Collect valid floor tiles for pod placement (far from start, not occupied)
+  const occupiedSet = new Set();
+  occupiedSet.add(startPos.x + ',' + startPos.y);
+  collectibles.forEach(c => occupiedSet.add(c.x + ',' + c.y));
+  hazards.forEach(h => occupiedSet.add(h.x + ',' + h.y));
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (map[r][c] === 0 && !occupiedSet.has(c + ',' + r)) {
+        const dist = Math.abs(c - startPos.x) + Math.abs(r - startPos.y);
+        if (dist >= 10) {
+          floorTiles.push({ x: c, y: r });
+        }
+      }
+    }
+  }
+
+  // Pick random pod position
+  const podTile = floorTiles[Math.floor(Math.random() * floorTiles.length)];
+  goalPos = { x: podTile.x, y: podTile.y };
+  map[goalPos.y][goalPos.x] = 3;
+
+  // Pod starts hidden
+  podRevealed = false;
+  podRevealFlash = 0;
 
   // Reset player
   player.x = startPos.x;
@@ -570,6 +623,18 @@ function updateHUD() {
   document.getElementById('score').textContent = score;
   document.getElementById('highScore').textContent = highScore;
   document.getElementById('timer').textContent = Math.max(0, Math.ceil(timer));
+
+  const collected = collectibles.filter(c => c.collected).length;
+  const total = collectibles.length;
+  const itemEl = document.getElementById('itemCount');
+  itemEl.textContent = collected + '/' + total;
+  if (collected >= total && total > 0) {
+    itemEl.style.color = '#33ff33';
+    itemEl.style.textShadow = '0 0 8px #33ff33';
+  } else {
+    itemEl.style.color = '#fff';
+    itemEl.style.textShadow = 'none';
+  }
 
   const timerEl = document.getElementById('timer');
   if (timer <= 15 && gameState === 'playing') {
@@ -725,6 +790,27 @@ function checkCollectiblePickup() {
         });
       }
       updateHUD();
+
+      // Check if all collected — reveal the pod!
+      if (!podRevealed && collectibles.every(col => col.collected)) {
+        podRevealed = true;
+        podRevealFlash = 90; // 1.5 seconds of flash
+        playPodRevealSound();
+        // Big burst of particles at pod location
+        for (let i = 0; i < 16; i++) {
+          const angle = (Math.PI * 2 / 16) * i;
+          particles.push({
+            x: goalPos.x * TILE + TILE / 2,
+            y: goalPos.y * TILE + TILE / 2,
+            vx: Math.cos(angle) * 3,
+            vy: Math.sin(angle) * 3,
+            life: 50,
+            maxLife: 50,
+            color: '#00ffaa',
+            size: 3 + Math.random() * 2,
+          });
+        }
+      }
     }
   });
 }
@@ -786,7 +872,7 @@ function updateHazards() {
 //  GOAL CHECK
 // ==========================================
 function checkGoalReached() {
-  if (player.x === goalPos.x && player.y === goalPos.y) {
+  if (podRevealed && player.x === goalPos.x && player.y === goalPos.y) {
     if (currentStage === 1) {
       // Time bonus
       score += Math.ceil(timer) * 10;
@@ -961,16 +1047,27 @@ function drawStartMarker() {
 }
 
 function drawEscapePod() {
+  if (!podRevealed) return;
+
   const gx = goalPos.x * TILE;
   const gy = goalPos.y * TILE;
   const cx = gx + TILE / 2;
   const cy = gy + TILE / 2;
 
-  // Glow
+  // Reveal flash effect
+  if (podRevealFlash > 0) {
+    podRevealFlash--;
+    const flashAlpha = (podRevealFlash / 90) * 0.4;
+    ctx.fillStyle = `rgba(0, 255, 170, ${flashAlpha})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Glow (stronger pulse right after reveal)
+  const extraGlow = podRevealFlash > 0 ? 10 : 0;
   const glowIntensity = 0.4 + Math.sin(frame * 0.05) * 0.2;
   ctx.save();
   ctx.shadowColor = '#00ffaa';
-  ctx.shadowBlur = 12 + glowIntensity * 8;
+  ctx.shadowBlur = 12 + glowIntensity * 8 + extraGlow;
 
   // Pod body
   ctx.fillStyle = '#667788';
@@ -1483,6 +1580,27 @@ function gameLoop(timestamp) {
 
   // Draw particles
   drawParticles();
+
+  // Pod reveal text overlay
+  if (podRevealed && podRevealFlash > 30) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '12px "Press Start 2P"';
+    ctx.fillStyle = '#00ffaa';
+    ctx.shadowColor = '#00ffaa';
+    ctx.shadowBlur = 20;
+    const alpha = Math.min(1, (podRevealFlash - 30) / 30);
+    ctx.globalAlpha = alpha;
+    ctx.fillText('POD LOCATED!', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.fillText('GET TO THE ESCAPE POD!', canvas.width / 2, canvas.height / 2 + 15);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+    ctx.restore();
+  }
 
   // Stage 2 crumbling effects
   if (currentStage === 2 && gameState === 'playing') {
