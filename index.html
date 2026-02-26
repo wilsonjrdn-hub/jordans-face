@@ -330,22 +330,24 @@
       function createDustParticle(x, y) {
         const el = document.createElement('div');
         el.className = 'stardust';
-        const size = Math.random() * 6 + 2;
+        const size = Math.random() * 8 + 2;
         const color = colors[Math.floor(Math.random() * colors.length)];
-        const dx = (Math.random() - 0.5) * 60;
-        const dy = (Math.random() - 0.5) * 50 + 20;
+        const dx = (Math.random() - 0.5) * 80;
+        const dy = (Math.random() - 0.5) * 60 + 25;
+        const duration = 800 + Math.random() * 600;
         el.style.cssText = `
           left: ${x - size / 2}px;
           top: ${y - size / 2}px;
           width: ${size}px;
           height: ${size}px;
           background: ${color};
-          box-shadow: 0 0 ${size + 4}px ${color};
+          box-shadow: 0 0 ${size + 6}px ${color};
           --dx: ${dx}px;
           --dy: ${dy}px;
+          animation-duration: ${duration}ms;
         `;
         document.body.appendChild(el);
-        setTimeout(() => el.remove(), 1000);
+        setTimeout(() => el.remove(), duration);
       }
 
       function createMiniStar(x, y) {
@@ -375,19 +377,29 @@
         lastX = e.clientX;
         lastY = e.clientY;
 
-        // Spawn dust particles every frame — more when moving faster
-        const count = Math.min(Math.floor(speed / 5) + 2, 6);
+        // Spawn dust particles every frame — MORE stardust!
+        const count = Math.min(Math.floor(speed / 3) + 3, 10);
         for (let i = 0; i < count; i++) {
-          const ox = (Math.random() - 0.5) * 18;
-          const oy = (Math.random() - 0.5) * 18;
+          const ox = (Math.random() - 0.5) * 24;
+          const oy = (Math.random() - 0.5) * 24;
           createDustParticle(e.clientX + ox, e.clientY + oy);
         }
 
-        // Mini stars more frequently
-        if (frameCount % 3 === 0 && speed > 3) {
-          const ox = (Math.random() - 0.5) * 24;
-          const oy = (Math.random() - 0.5) * 24;
-          createMiniStar(e.clientX + ox, e.clientY + oy);
+        // Mini stars much more frequently
+        if (frameCount % 2 === 0 && speed > 2) {
+          const starCount = speed > 15 ? 2 : 1;
+          for (let i = 0; i < starCount; i++) {
+            const ox = (Math.random() - 0.5) * 30;
+            const oy = (Math.random() - 0.5) * 30;
+            createMiniStar(e.clientX + ox, e.clientY + oy);
+          }
+        }
+
+        // Extra shimmer even when barely moving
+        if (speed > 0.5 && Math.random() < 0.4) {
+          const ox = (Math.random() - 0.5) * 40;
+          const oy = (Math.random() - 0.5) * 40;
+          createDustParticle(e.clientX + ox, e.clientY + oy);
         }
       });
     })();
@@ -977,7 +989,6 @@
       const jordan = document.querySelector('.astronaut');
 
       if (chai) {
-        chai.style.cursor = 'pointer';
         chai.addEventListener('click', function(e) {
           e.stopPropagation();
           playMeow();
@@ -989,7 +1000,6 @@
       }
 
       if (jordan) {
-        jordan.style.cursor = 'pointer';
         jordan.addEventListener('click', function(e) {
           e.stopPropagation();
           playBabyVoice();
