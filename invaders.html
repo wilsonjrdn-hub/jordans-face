@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JERGUS INVADERS | Jordan's Face .com</title>
+  <title>JERGUSIA-7 INVADERS | Jordan's Face .com</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -17,6 +17,7 @@
       flex-direction: column;
       align-items: center;
       overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .scanlines {
@@ -40,7 +41,7 @@
     }
 
     .title {
-      font-size: 1.2rem;
+      font-size: clamp(0.7rem, 2.5vw, 1.2rem);
       color: #ff0;
       text-shadow: 0 0 10px #ff0, 0 0 20px #ffa500;
     }
@@ -61,7 +62,7 @@
       width: 100%;
       max-width: 560px;
       padding: 10px 5px;
-      font-size: 0.6rem;
+      font-size: 0.55rem;
     }
 
     .score-label { color: #ff0; }
@@ -83,12 +84,16 @@
     #gameCanvas {
       border: 3px solid #333;
       box-shadow: 0 0 20px rgba(51,255,51,0.2);
+      max-width: calc(100vw - 20px);
+      height: auto;
     }
 
     .game-msg {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: #33ff33;
       margin-top: 12px;
+      text-align: center;
+      line-height: 2;
       animation: blink 1.2s step-end infinite;
     }
 
@@ -143,6 +148,14 @@
 
     @media (max-width: 600px) {
       .mobile-controls { display: flex; }
+      .hud {
+        font-size: 0.4rem;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        padding: 5px;
+      }
+      header { padding: 8px 5px 2px; }
     }
 
     @media (pointer: coarse) {
@@ -154,7 +167,7 @@
   <div class="scanlines"></div>
 
   <header>
-    <h1 class="title"><a href="index.html">JERGUS INVADERS</a></h1>
+    <h1 class="title"><a href="index.html">JERGUSIA-7 INVADERS</a></h1>
   </header>
 
   <div class="hud">
@@ -163,8 +176,12 @@
       <span class="score-value" id="score">0</span>
     </div>
     <div>
+      <span class="score-label">HI:</span>
+      <span class="score-value" id="highScoreDisplay">0</span>
+    </div>
+    <div>
       <span class="score-label">WAVE:</span>
-      <span class="score-value" id="wave">1</span>
+      <span class="score-value" id="wave">1/7</span>
     </div>
     <div class="lives-display">
       <span class="score-label">LIVES:</span>
@@ -174,7 +191,7 @@
 
   <canvas id="gameCanvas"></canvas>
   <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
-  <p class="controls-info">ARROWS / WASD TO MOVE &mdash; SPACE TO FIRE</p>
+  <p class="controls-info">ESCAPE JERGUSIA-7 ORBIT &mdash; ARROWS/WASD + SPACE TO FIRE</p>
 
   <div class="mobile-controls" id="mobileControls">
     <div class="ctrl-btn" data-dir="left">&#9664;</div>
@@ -184,7 +201,7 @@
 
 <script>
 // ==========================================
-//  JERGUS INVADERS
+//  JERGUSIA-7 INVADERS
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -199,14 +216,148 @@ canvas.height = H;
 const faceImg = new Image();
 faceImg.src = 'images/jordan.jpeg';
 
+// ---- Game Constants ----
+const MAX_WAVES = 7;
+
 // ---- Game State ----
-let gameState = 'waiting';
+let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win
 let score = 0;
 let highScore = parseInt(localStorage.getItem('invaders-high') || '0');
 let lives = 3;
 let wave = 1;
 let frame = 0;
 let shakeTimer = 0;
+let playerFlashTimer = 0;
+let waveTransitionTimer = 0;
+const WAVE_TRANSITION_DURATION = 120; // ~2 seconds at 60fps
+let waveBonusAmount = 0; // stored for display during transition
+
+// ==========================================
+//  AUDIO
+// ==========================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playShootSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, t);
+  osc.frequency.exponentialRampToValueAtTime(440, t + 0.08);
+  gain.gain.setValueAtTime(0.07, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function playEnemyHitSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Noise burst
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.15);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.12, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  src.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  src.start(t);
+  // Low thump
+  const osc = audioCtx.createOscillator();
+  const oscGain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(60, t + 0.2);
+  oscGain.gain.setValueAtTime(0.08, t);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(oscGain);
+  oscGain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.25);
+}
+
+function playPlayerHitSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.35);
+}
+
+function playWaveCompleteSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.12);
+    gain.gain.setValueAtTime(0.06, t + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.12);
+    osc.stop(t + i * 0.12 + 0.35);
+  });
+}
+
+function playWinSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047, 1319, 1568];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.06, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.1);
+    osc.stop(t + i * 0.1 + 0.45);
+  });
+}
+
+function playGameOverSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 1.6);
+}
 
 // ---- Player (ship with Jordan's face) ----
 const player = {
@@ -276,7 +427,7 @@ let enemyBullets = [];
 
 // ---- Invaders ----
 let invaders = [];
-let invaderDir = 1; // 1 = right, -1 = left
+let invaderDir = 1;
 let invaderSpeed = 0.5;
 let invaderDropAmount = 18;
 let invaderShootChance = 0.008;
@@ -331,6 +482,7 @@ function startGame() {
   wave = 1;
   player.x = W / 2;
   player.cooldown = 0;
+  playerFlashTimer = 0;
   playerBullets = [];
   enemyBullets = [];
   particles = [];
@@ -353,7 +505,7 @@ function nextWave() {
   invaderMoveInterval = Math.max(10, 30 - wave * 2);
   invaderShootChance = Math.min(0.03, 0.008 + wave * 0.003);
   createInvaders();
-  document.getElementById('wave').textContent = wave;
+  updateHUD();
 }
 
 // ==========================================
@@ -361,7 +513,8 @@ function nextWave() {
 // ==========================================
 function updateHUD() {
   document.getElementById('score').textContent = score;
-  document.getElementById('wave').textContent = wave;
+  document.getElementById('wave').textContent = wave + '/' + MAX_WAVES;
+  document.getElementById('highScoreDisplay').textContent = highScore;
   let iconsHtml = '';
   for (let i = 0; i < lives; i++) {
     iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
@@ -382,19 +535,19 @@ function updatePlayer() {
   player.x = Math.max(player.w / 2, Math.min(W - player.w / 2, player.x));
 
   if (player.cooldown > 0) player.cooldown--;
+  if (playerFlashTimer > 0) playerFlashTimer--;
 
   if (fire && player.cooldown <= 0) {
     playerBullets.push({ x: player.x, y: player.y - player.h / 2, speed: -7 });
     player.cooldown = player.cooldownMax;
+    playShootSound();
   }
 }
 
 function updateBullets() {
-  // Player bullets
   playerBullets.forEach(b => { b.y += b.speed; });
   playerBullets = playerBullets.filter(b => b.y > -10);
 
-  // Enemy bullets
   enemyBullets.forEach(b => { b.y += b.speed; });
   enemyBullets = enemyBullets.filter(b => b.y < H + 10);
 }
@@ -405,7 +558,6 @@ function updateInvaders() {
   if (invaderMoveTimer >= invaderMoveInterval) {
     invaderMoveTimer = 0;
 
-    // Check bounds
     let hitEdge = false;
     invaders.forEach(inv => {
       if (!inv.alive) return;
@@ -449,9 +601,10 @@ function updateInvaders() {
   invaders.forEach(inv => {
     if (inv.alive && inv.y + inv.h >= player.y - 10) {
       gameState = 'gameover';
+      playGameOverSound();
       saveHighScore();
       updateHUD();
-      document.getElementById('gameMsg').textContent = 'GAME OVER — PRESS ENTER';
+      document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
     }
   });
 }
@@ -465,11 +618,10 @@ function checkCollisions() {
           b.y > inv.y && b.y < inv.y + inv.h) {
         inv.alive = false;
         playerBullets.splice(bi, 1);
-        // Score: top rows worth more
         score += (5 - inv.row) * 10;
-        // Explosion particles
         spawnExplosion(inv.x + inv.w / 2, inv.y + inv.h / 2, inv.row);
         shakeTimer = 5;
+        playEnemyHitSound();
         updateHUD();
       }
     });
@@ -477,24 +629,45 @@ function checkCollisions() {
 
   // Enemy bullets vs player
   enemyBullets.forEach((b, bi) => {
+    if (playerFlashTimer > 0) return; // Invulnerable during flash
     if (b.x > player.x - player.w / 2 && b.x < player.x + player.w / 2 &&
         b.y > player.y - player.h / 2 && b.y < player.y + player.h / 2) {
       enemyBullets.splice(bi, 1);
       lives--;
       shakeTimer = 15;
+      playerFlashTimer = 60; // 1 second invulnerability
       spawnExplosion(player.x, player.y, -1);
+      playPlayerHitSound();
       updateHUD();
       if (lives <= 0) {
         gameState = 'gameover';
+        playGameOverSound();
         saveHighScore();
-        document.getElementById('gameMsg').textContent = 'GAME OVER — PRESS ENTER';
+        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
       }
     }
   });
 
   // Check wave clear
   if (invaders.every(i => !i.alive)) {
-    nextWave();
+    if (wave >= MAX_WAVES) {
+      // WIN!
+      score += 1000; // Final wave bonus
+      gameState = 'win';
+      playWinSound();
+      saveHighScore();
+      updateHUD();
+      document.getElementById('gameMsg').innerHTML = 'REACHED SAFE ORBIT!<br>SCORE: ' + score + '<br>PRESS ENTER TO PLAY AGAIN';
+    } else {
+      // Wave transition
+      waveBonusAmount = wave * 100;
+      score += waveBonusAmount;
+      gameState = 'waveTransition';
+      waveTransitionTimer = WAVE_TRANSITION_DURATION;
+      playWaveCompleteSound();
+      saveHighScore();
+      updateHUD();
+    }
   }
 }
 
@@ -502,6 +675,7 @@ function saveHighScore() {
   if (score > highScore) {
     highScore = score;
     localStorage.setItem('invaders-high', highScore);
+    updateHUD();
   }
 }
 
@@ -527,7 +701,7 @@ function updateParticles() {
   particles.forEach(p => {
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.05; // gravity
+    p.vy += 0.05;
     p.life--;
   });
   particles = particles.filter(p => p.life > 0);
@@ -547,6 +721,9 @@ function drawStars() {
 }
 
 function drawPlayer() {
+  // Flash effect when hit
+  if (playerFlashTimer > 0 && Math.floor(frame / 3) % 2 === 0) return;
+
   const px = player.x - player.w / 2;
   const py = player.y - player.h / 2;
 
@@ -595,14 +772,11 @@ function drawInvaders() {
     const cx = inv.x + inv.w / 2;
     const cy = inv.y + inv.h / 2;
 
-    // Color by row
     const rowColors = ['#ff0000', '#ff4400', '#ffaa00', '#00ff00', '#00aaff'];
     const color = rowColors[inv.row] || '#fff';
 
-    // Alien body
     ctx.fillStyle = color;
 
-    // Body shape - little alien with arms
     const armOffset = inv.animFrame === 0 ? -3 : 3;
 
     // Main body
@@ -614,7 +788,7 @@ function drawInvaders() {
     ctx.fillRect(inv.x - 4, cy + armOffset, 6, 4);
     ctx.fillRect(inv.x + inv.w - 2, cy - armOffset, 6, 4);
 
-    // Face overlay (tiny Jordan face on each invader!)
+    // Face overlay
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, inv.w / 2 - 4, 0, Math.PI * 2);
@@ -635,7 +809,6 @@ function drawInvaders() {
 }
 
 function drawBullets() {
-  // Player bullets - green laser
   playerBullets.forEach(b => {
     ctx.fillStyle = '#33ff33';
     ctx.shadowColor = '#33ff33';
@@ -644,7 +817,6 @@ function drawBullets() {
     ctx.shadowBlur = 0;
   });
 
-  // Enemy bullets - red
   enemyBullets.forEach(b => {
     ctx.fillStyle = '#ff0000';
     ctx.shadowColor = '#ff0000';
@@ -662,6 +834,134 @@ function drawParticles() {
     ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
   });
   ctx.globalAlpha = 1;
+}
+
+// ==========================================
+//  CANVAS OVERLAYS
+// ==========================================
+function drawWaitingOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 15;
+  ctx.fillText('JERGUSIAN ORBIT', W / 2, H / 2 - 80);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('DEFENSE DRONES DETECTED', W / 2, H / 2 - 45);
+  ctx.fillText('BLAST THROUGH ' + MAX_WAVES + ' WAVES', W / 2, H / 2 - 20);
+  ctx.fillText('TO REACH SAFE ORBIT', W / 2, H / 2 + 5);
+
+  if (Math.floor(frame / 30) % 2 === 0) {
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.fillText('PRESS ENTER TO LAUNCH', W / 2, H / 2 + 50);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWaveTransitionOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 15;
+  ctx.fillText('WAVE ' + wave + ' COMPLETE', W / 2, H / 2 - 20);
+
+  ctx.font = '10px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 10;
+  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 + 15);
+
+  if (waveTransitionTimer < WAVE_TRANSITION_DURATION / 2) {
+    ctx.font = '12px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    const alpha = 0.5 + Math.sin(frame * 0.15) * 0.5;
+    ctx.globalAlpha = alpha;
+    ctx.fillText('WAVE ' + (wave + 1) + '/' + MAX_WAVES, W / 2, H / 2 + 50);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawGameOverOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillStyle = '#ff0000';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20;
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 30);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowBlur = 8;
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 5);
+  ctx.fillText('WAVE: ' + wave + '/' + MAX_WAVES, W / 2, H / 2 + 25);
+
+  if (score >= highScore && score > 0) {
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.fillText('NEW HIGH SCORE!', W / 2, H / 2 + 50);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWinOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 20;
+  ctx.fillText('REACHED SAFE ORBIT!', W / 2, H / 2 - 50);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowBlur = 10;
+  ctx.fillText('JORDAN AND CHAI ARE SAFE', W / 2, H / 2 - 20);
+
+  ctx.fillStyle = '#fff';
+  ctx.fillText('FINAL SCORE: ' + score, W / 2, H / 2 + 15);
+
+  if (score >= highScore && score > 0) {
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.fillText('NEW HIGH SCORE!', W / 2, H / 2 + 40);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
 }
 
 // ==========================================
@@ -693,11 +993,39 @@ function gameLoop() {
     updateParticles();
   }
 
-  // Draw everything (even when waiting/gameover for visual)
+  if (gameState === 'waveTransition') {
+    waveTransitionTimer--;
+    updateParticles();
+    if (waveTransitionTimer <= 0) {
+      nextWave();
+      gameState = 'playing';
+    }
+  }
+
+  // Victory celebration particles
+  if (gameState === 'win' && frame % 5 === 0) {
+    spawnExplosion(Math.random() * W, Math.random() * H * 0.6, Math.floor(Math.random() * 5));
+  }
+  if (gameState === 'win') {
+    updateParticles();
+  }
+
+  // Draw everything
   drawInvaders();
   drawPlayer();
   drawBullets();
   drawParticles();
+
+  // Canvas overlays
+  if (gameState === 'waiting') {
+    drawWaitingOverlay();
+  } else if (gameState === 'waveTransition') {
+    drawWaveTransitionOverlay();
+  } else if (gameState === 'gameover') {
+    drawGameOverOverlay();
+  } else if (gameState === 'win') {
+    drawWinOverlay();
+  }
 
   ctx.restore();
 
