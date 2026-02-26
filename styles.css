@@ -276,6 +276,29 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+.transmission-skip {
+  display: block;
+  margin: 18px auto 0;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.45rem;
+  color: #33ff33;
+  background: none;
+  border: 1px solid rgba(51, 255, 51, 0.25);
+  padding: 8px 18px;
+  border-radius: 3px;
+  letter-spacing: 2px;
+  opacity: 0.35;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.transmission-skip:hover {
+  opacity: 1;
+  border-color: rgba(51, 255, 51, 0.6);
+  box-shadow: 0 0 10px rgba(51, 255, 51, 0.2);
+}
+
 .transmission-modal.phase2 {
   max-width: 600px;
   padding: 35px 40px;

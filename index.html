@@ -232,6 +232,7 @@
         </button>
       </div>
 
+      <button class="transmission-skip" onclick="skipTransmission()">SKIP &raquo;</button>
     </div>
   </div>
 
@@ -808,6 +809,25 @@
           playAcceptBeep();
         }
         const overlay = document.getElementById('transmissionOverlay');
+        overlay.classList.add('dismissed');
+        setTimeout(() => overlay.remove(), 600);
+      };
+
+      // Skip: Immediately dismiss transmission from any phase
+      window.skipTransmission = function() {
+        // Stop any ongoing narration
+        if (voiceSynth) voiceSynth.cancel();
+        // Init audio context if not yet created (skipped from phase 1)
+        if (!typeSfxCtx) {
+          typeSfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        playAcceptBeep();
+        // Start music if not already playing
+        if (window.startMusicFromTransmission) {
+          window.startMusicFromTransmission();
+        }
+        const overlay = document.getElementById('transmissionOverlay');
+        if (!overlay) return;
         overlay.classList.add('dismissed');
         setTimeout(() => overlay.remove(), 600);
       };
