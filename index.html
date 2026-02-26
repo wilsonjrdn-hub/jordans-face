@@ -246,12 +246,12 @@
         </div>
         <span class="status">PLAY NOW!</span>
       </li>
-      <li class="menu-item" onclick="window.location='invaders.html'">
+      <li class="menu-item locked" id="level2">
         <div class="game-info">
           <span class="game-name">LEVEL 2: JERGUSIA-7 INVADERS</span>
           <span class="game-desc">Blast through enemy ships and reach a safer orbit.</span>
         </div>
-        <span class="status">PLAY NOW!</span>
+        <span class="status">BEAT LEVEL 1 TO UNLOCK</span>
       </li>
       <li class="menu-item locked">
         <div class="game-info">
@@ -831,6 +831,20 @@
         overlay.classList.add('dismissed');
         setTimeout(() => overlay.remove(), 600);
       };
+    })();
+  </script>
+
+  <script>
+    // Level progression: unlock levels based on completion
+    (function() {
+      if (localStorage.getItem('level-1-complete')) {
+        const el = document.getElementById('level2');
+        if (el) {
+          el.classList.remove('locked');
+          el.setAttribute('onclick', "window.location='invaders.html'");
+          el.querySelector('.status').textContent = 'PLAY NOW!';
+        }
+      }
     })();
   </script>
 </body>

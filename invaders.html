@@ -662,6 +662,7 @@ function checkCollisions() {
       // WIN!
       score += 1000; // Final wave bonus
       gameState = 'win';
+      localStorage.setItem('level-2-complete', 'true');
       playWinSound();
       saveHighScore();
       updateHUD();

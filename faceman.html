@@ -889,6 +889,7 @@ function checkGoalReached() {
         localStorage.setItem('escape-jergusia-high', highScore);
       }
       gameState = 'win';
+      localStorage.setItem('level-1-complete', 'true');
       playWinSound();
       updateHUD();
       document.getElementById('gameMsg').innerHTML = 'ESCAPED JERGUSIA-7!<br>SCORE: ' + score + '<br>PRESS ENTER TO PLAY AGAIN';
