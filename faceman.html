@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JORD-MAN | Jordan's Face .com</title>
+  <title>ESCAPE FROM JERGUSIA-7 | Jordan's Face .com</title>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,10 +16,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
-    /* CRT scanlines */
     .scanlines {
       position: fixed;
       top: 0; left: 0;
@@ -42,7 +42,7 @@
     }
 
     .title {
-      font-size: 1.2rem;
+      font-size: clamp(0.6rem, 2.5vw, 1.2rem);
       color: #ff0;
       text-shadow: 0 0 10px #ff0, 0 0 20px #ffa500;
     }
@@ -63,35 +63,48 @@
       width: 100%;
       max-width: 560px;
       padding: 10px 5px;
-      font-size: 0.6rem;
+      font-size: 0.55rem;
     }
 
     .score-label { color: #ff0; }
     .score-value { color: #fff; margin-left: 5px; }
-    .lives-display { display: flex; gap: 5px; align-items: center; }
-    .life-icon {
-      display: inline-block;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      overflow: hidden;
+
+    .timer-warning {
+      color: #ff0000 !important;
+      text-shadow: 0 0 10px #ff0000;
+      animation: blink 0.5s step-end infinite;
     }
-    .life-icon img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+
+    .stage-label {
+      color: #33ff33;
+      text-shadow: 0 0 8px #33ff33;
+    }
+
+    .stage-label.stage2 {
+      color: #ff6644;
+      text-shadow: 0 0 8px #ff6644;
+      animation: pulse-stage 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-stage {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
     }
 
     #gameCanvas {
       border: 3px solid #333;
       box-shadow: 0 0 20px rgba(51,255,51,0.2);
       image-rendering: pixelated;
+      max-width: calc(100vw - 20px);
+      height: auto;
     }
 
     .game-msg {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: #33ff33;
       margin-top: 12px;
+      text-align: center;
+      line-height: 2;
       animation: blink 1.2s step-end infinite;
     }
 
@@ -108,7 +121,6 @@
       line-height: 1.8;
     }
 
-    /* Mobile d-pad */
     .dpad {
       display: none;
       margin-top: 15px;
@@ -144,6 +156,14 @@
 
     @media (max-width: 600px) {
       .dpad { display: block; }
+      .hud {
+        font-size: 0.4rem;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        padding: 5px;
+      }
+      header { padding: 8px 5px 2px; }
     }
 
     @media (pointer: coarse) {
@@ -155,7 +175,7 @@
   <div class="scanlines"></div>
 
   <header>
-    <h1 class="title"><a href="index.html">JORD-MAN</a></h1>
+    <h1 class="title"><a href="index.html">ESCAPE FROM JERGUSIA-7</a></h1>
   </header>
 
   <div class="hud">
@@ -164,12 +184,15 @@
       <span class="score-value" id="score">0</span>
     </div>
     <div>
+      <span class="stage-label" id="stageLabel">STAGE 1</span>
+    </div>
+    <div>
+      <span class="score-label">TIME:</span>
+      <span class="score-value" id="timer">90</span>
+    </div>
+    <div>
       <span class="score-label">HIGH:</span>
       <span class="score-value" id="highScore">0</span>
-    </div>
-    <div class="lives-display">
-      <span class="score-label">LIVES:</span>
-      <span id="livesIcons"></span>
     </div>
   </div>
 
@@ -186,7 +209,8 @@
 
 <script>
 // ==========================================
-//  JORD-MAN — A Pac-Man tribute with Jordan's face
+//  ESCAPE FROM JERGUSIA-7
+//  A two-stage maze escape game
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -199,117 +223,344 @@ const ROWS = 21;
 canvas.width = COLS * TILE;
 canvas.height = ROWS * TILE;
 
-// -- Maze layout --
-// 1 = wall, 0 = dot path, 2 = empty (no dot), 3 = power pellet, 4 = ghost house
-const MAP = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
-  [1,3,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,3,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,0,1,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,1,0,1],
-  [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
-  [1,1,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,1,1],
-  [2,2,2,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,2,2,2],
-  [1,1,1,1,0,1,0,1,1,4,4,4,1,1,0,1,0,1,1,1,1],
-  [2,2,2,2,0,0,0,1,4,4,4,4,4,1,0,0,0,2,2,2,2],
-  [1,1,1,1,0,1,0,1,4,4,4,4,4,1,0,1,0,1,1,1,1],
-  [2,2,2,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,2,2,2],
-  [1,1,1,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,1,1,1],
-  [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
-  [1,0,1,1,0,1,1,1,0,0,1,0,0,1,1,1,0,1,1,0,1],
-  [1,3,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,3,1],
-  [1,1,0,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,0,1,1],
-  [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],
-  [1,0,1,1,1,1,1,1,0,0,1,0,0,1,1,1,1,1,1,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-];
-
-// Deep copy for resets
-const MAP_ORIGINAL = MAP.map(r => [...r]);
-let map;
-
 // -- Load face image --
 const faceImg = new Image();
 faceImg.src = 'images/jordan.jpeg';
 
-// -- Game state --
+// ==========================================
+//  MAZE MAPS
+// ==========================================
+// 0 = floor, 1 = wall, 2 = start, 3 = goal (escape pod)
+// 4 = collectible, 5 = floor crack, 6 = debris zone
+
+const STAGE1_MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,3,1],
+  [1,0,1,1,0,1,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1],
+  [1,0,1,0,0,0,0,0,4,1,0,1,4,0,0,0,0,0,1,0,1],
+  [1,0,1,0,1,1,1,1,0,1,0,1,0,1,1,1,1,0,1,0,1],
+  [1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1],
+  [1,1,1,0,1,1,0,1,1,1,0,1,1,1,0,1,1,0,1,1,1],
+  [1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+  [1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1,0,1,1,0,1],
+  [1,0,4,1,0,0,0,1,0,0,1,0,0,1,0,0,0,1,4,0,1],
+  [1,0,0,1,1,1,0,1,0,1,1,1,0,1,0,1,1,1,0,0,1],
+  [1,1,0,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,1,1],
+  [1,0,0,1,1,1,0,1,0,1,1,1,0,1,0,1,1,1,0,0,1],
+  [1,0,1,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,1],
+  [1,0,0,0,0,1,0,1,1,1,0,1,1,1,0,1,0,0,0,0,1],
+  [1,0,1,1,0,1,0,0,0,0,0,0,0,0,0,1,0,1,1,0,1],
+  [1,0,1,0,0,1,1,1,0,1,0,1,0,1,1,1,0,0,1,0,1],
+  [1,0,1,0,1,0,0,0,0,1,4,1,0,0,0,0,1,0,1,0,1],
+  [1,0,0,0,1,0,1,1,0,1,0,1,0,1,1,0,1,0,0,0,1],
+  [1,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+const STAGE2_MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,6,1,0,0,0,5,0,0,0,5,0,0,0,1,6,0,3,1],
+  [1,0,1,0,1,0,1,1,1,1,0,1,1,1,1,0,1,0,1,0,1],
+  [1,0,1,0,0,0,0,4,0,1,0,1,0,4,0,0,0,0,1,0,1],
+  [1,0,1,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,0,1],
+  [1,0,0,0,0,6,0,0,0,0,0,0,0,0,0,6,0,0,0,0,1],
+  [1,1,0,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,0,1,1],
+  [1,0,0,0,5,1,0,0,4,0,0,0,4,0,0,1,5,0,0,0,1],
+  [1,0,1,1,0,1,1,1,0,1,0,1,0,1,1,1,0,1,1,0,1],
+  [1,0,1,0,0,0,0,1,0,1,0,1,0,1,0,0,0,0,1,0,1],
+  [1,0,1,0,1,1,6,1,0,1,5,1,0,1,6,1,1,0,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,0,1,1,0,1,0,1,1,1,0,1,0,1,1,0,1,0,1],
+  [1,0,1,0,0,0,0,1,0,0,6,0,0,1,0,0,0,0,1,0,1],
+  [1,0,1,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,4,1,0,1,4,0,0,0,0,0,0,0,1],
+  [1,0,1,0,1,1,1,1,0,1,0,1,0,1,1,1,1,0,1,0,1],
+  [1,0,1,0,0,6,0,0,0,0,0,0,0,0,0,6,0,0,1,0,1],
+  [1,0,1,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,0,1],
+  [1,2,0,0,0,0,0,0,5,0,0,0,5,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// ==========================================
+//  STAGE CONFIG
+// ==========================================
+const STAGE_CONFIG = {
+  1: {
+    name: "CHAI'S ESCAPE",
+    character: 'chai',
+    timerStart: 90,
+    mapData: STAGE1_MAP,
+    collectibleTypes: ['yarn_ball', 'mouse_toy', 'fish_treat'],
+    wallColor1: '#2a1a4a',
+    wallColor2: '#1a0a3a',
+    wallBorder: '#4a3a7a',
+    floorColor: '#0d0d1a',
+  },
+  2: {
+    name: "JORDAN'S ESCAPE",
+    character: 'jordan',
+    timerStart: 75,
+    mapData: STAGE2_MAP,
+    collectibleTypes: ['bottle', 'pacifier', 'teddy_bear'],
+    wallColor1: '#3a1a1a',
+    wallColor2: '#2a0a0a',
+    wallBorder: '#6a3a3a',
+    floorColor: '#0d0a0a',
+  }
+};
+
+// ==========================================
+//  GAME STATE
+// ==========================================
+let gameState = 'waiting'; // waiting | playing | cutscene | gameover | win
+let currentStage = 1;
 let score = 0;
-let highScore = parseInt(localStorage.getItem('jordman-high') || '0');
-let lives = 3;
-let gameState = 'waiting'; // waiting, playing, dead, gameover, win
-let deathTimer = 0;
-let msgTimer = 0;
-
-// -- Player --
-let player = { x: 10, y: 15, dir: 'right', nextDir: 'right', moveProgress: 0 };
-const PLAYER_SPEED = 0.08;
-
-// -- Ghosts --
-const GHOST_COLORS = ['#ff0000', '#ffb8ff', '#00ffff', '#ffb852'];
-const GHOST_NAMES  = ['Blinky', 'Pinky', 'Inky', 'Clyde'];
-let ghosts = [];
-let frightenedTimer = 0;
-const FRIGHTENED_DURATION = 400;
-const GHOST_SPEED = 0.055;
-const GHOST_FRIGHTENED_SPEED = 0.035;
-
-// -- Dots count --
-let totalDots = 0;
-let dotsEaten = 0;
-
-// -- Animation --
+let highScore = parseInt(localStorage.getItem('escape-jergusia-high') || '0');
+let timer = 90;
+let timerAccumulator = 0;
+let lastTimestamp = 0;
 let frame = 0;
+let cutsceneTimer = 0;
+let cutscenePhase = 0;
+let shakeTimer = 0;
+let map = [];
+let startPos = { x: 1, y: 19 };
+let goalPos = { x: 19, y: 1 };
+
+// Player
+let player = {
+  x: 1, y: 19,
+  dir: 'right', nextDir: 'right',
+  moveProgress: 0,
+  speed: 0.07,
+  slowedTimer: 0,
+  prevX: 1, prevY: 19,
+};
+
+// Collectibles
+let collectibles = [];
+
+// Hazards
+let hazards = [];
+
+// Particles
+let particles = [];
+
+// ==========================================
+//  AUDIO
+// ==========================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playCollectSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(523, t);
+  osc.frequency.setValueAtTime(784, t + 0.06);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.2);
+}
+
+function playHazardSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.1);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.12, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  src.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(t);
+}
+
+function playStageCompleteSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.12);
+    gain.gain.setValueAtTime(0.06, t + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.12);
+    osc.stop(t + i * 0.12 + 0.35);
+  });
+}
+
+function playWinSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047, 1319, 1568];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.06, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.1);
+    osc.stop(t + i * 0.1 + 0.45);
+  });
+}
+
+function playGameOverSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 1.6);
+}
+
+function playFootstepSound() {
+  if (frame % 8 !== 0) return;
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(180 + Math.random() * 40, t);
+  gain.gain.setValueAtTime(0.03, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.05);
+}
+
+let lastWarningSecond = -1;
+function playTimerWarningBeep() {
+  if (timer === lastWarningSecond) return;
+  lastWarningSecond = timer;
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(880, t);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function playSlowSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(100, t + 0.2);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.25);
+}
 
 // ==========================================
 //  INIT
 // ==========================================
-function resetMap() {
-  map = MAP_ORIGINAL.map(r => [...r]);
-  totalDots = 0;
-  dotsEaten = 0;
+function loadStage(stageNum) {
+  const config = STAGE_CONFIG[stageNum];
+  currentStage = stageNum;
+  map = config.mapData.map(r => [...r]);
+  timer = config.timerStart;
+  timerAccumulator = 0;
+  lastWarningSecond = -1;
+  collectibles = [];
+  hazards = [];
+  particles = [];
+  shakeTimer = 0;
+
+  // Find start and goal positions, init collectibles and hazards
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
-      if (map[r][c] === 0 || map[r][c] === 3) totalDots++;
+      const tile = map[r][c];
+      if (tile === 2) {
+        startPos = { x: c, y: r };
+        map[r][c] = 0;
+      } else if (tile === 3) {
+        goalPos = { x: c, y: r };
+        // Keep 3 in map so we can detect goal
+      } else if (tile === 4) {
+        const type = config.collectibleTypes[collectibles.length % config.collectibleTypes.length];
+        collectibles.push({ x: c, y: r, type: type, collected: false });
+        map[r][c] = 0;
+      } else if (tile === 5) {
+        hazards.push({ x: c, y: r, type: 'crack' });
+        map[r][c] = 0;
+      } else if (tile === 6) {
+        hazards.push({
+          x: c, y: r, type: 'debris',
+          cycleTimer: Math.floor(Math.random() * 120),
+          phase: 'clear',
+          clearDuration: stageNum === 1 ? 150 : 100,
+          warningDuration: 60,
+          dropDuration: 20,
+        });
+        map[r][c] = 0;
+      }
     }
   }
-}
 
-function resetPlayer() {
-  player.x = 10;
-  player.y = 15;
+  // Reset player
+  player.x = startPos.x;
+  player.y = startPos.y;
+  player.prevX = startPos.x;
+  player.prevY = startPos.y;
   player.dir = 'right';
   player.nextDir = 'right';
   player.moveProgress = 0;
-}
+  player.slowedTimer = 0;
 
-function initGhosts() {
-  ghosts = [
-    { x: 9,  y: 9, dir: 'up',    color: GHOST_COLORS[0], mode: 'scatter', startDelay: 0   },
-    { x: 10, y: 9, dir: 'up',    color: GHOST_COLORS[1], mode: 'scatter', startDelay: 100 },
-    { x: 11, y: 9, dir: 'up',    color: GHOST_COLORS[2], mode: 'scatter', startDelay: 200 },
-    { x: 10, y: 10,dir: 'up',    color: GHOST_COLORS[3], mode: 'scatter', startDelay: 300 },
-  ];
-  ghosts.forEach(g => {
-    g.moveProgress = 0;
-    g.frightened = false;
-    g.eaten = false;
-    g.started = false;
-    g.homeX = g.x;
-    g.homeY = g.y;
-  });
+  updateHUD();
 }
 
 function startGame() {
   score = 0;
-  lives = 3;
-  resetMap();
-  resetPlayer();
-  initGhosts();
-  frightenedTimer = 0;
+  currentStage = 1;
+  loadStage(1);
   gameState = 'playing';
-  updateHUD();
+  lastTimestamp = 0;
   document.getElementById('gameMsg').textContent = '';
+  updateHUD();
 }
 
 // ==========================================
@@ -318,19 +569,33 @@ function startGame() {
 function updateHUD() {
   document.getElementById('score').textContent = score;
   document.getElementById('highScore').textContent = highScore;
-  let iconsHtml = '';
-  for (let i = 0; i < lives; i++) {
-    iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+  document.getElementById('timer').textContent = Math.max(0, Math.ceil(timer));
+
+  const timerEl = document.getElementById('timer');
+  if (timer <= 15 && gameState === 'playing') {
+    timerEl.classList.add('timer-warning');
+  } else {
+    timerEl.classList.remove('timer-warning');
   }
-  document.getElementById('livesIcons').innerHTML = iconsHtml;
+
+  const stageEl = document.getElementById('stageLabel');
+  if (currentStage === 1) {
+    stageEl.textContent = "STAGE 1: CHAI";
+    stageEl.className = 'stage-label';
+  } else {
+    stageEl.textContent = "STAGE 2: JORDAN";
+    stageEl.className = 'stage-label stage2';
+  }
 }
 
 // ==========================================
 //  INPUT
 // ==========================================
-const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-                 w: 'up', s: 'down', a: 'left', d: 'right',
-                 W: 'up', S: 'down', A: 'left', D: 'right' };
+const dirMap = {
+  ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
+  w: 'up', s: 'down', a: 'left', d: 'right',
+  W: 'up', S: 'down', A: 'left', D: 'right'
+};
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' || e.key === ' ') {
@@ -345,7 +610,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// D-pad (mobile)
 document.querySelectorAll('.dpad-btn').forEach(btn => {
   const handler = (e) => {
     e.preventDefault();
@@ -359,7 +623,6 @@ document.querySelectorAll('.dpad-btn').forEach(btn => {
   btn.addEventListener('mousedown', handler);
 });
 
-// Tap to start on canvas
 canvas.addEventListener('click', () => {
   if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
     startGame();
@@ -367,39 +630,22 @@ canvas.addEventListener('click', () => {
 });
 
 // ==========================================
-//  MOVEMENT HELPERS
+//  MOVEMENT
 // ==========================================
 const DX = { left: -1, right: 1, up: 0, down: 0 };
 const DY = { left: 0, right: 0, up: -1, down: 1 };
 
 function isWalkable(col, row) {
-  // Tunnel wrapping
-  if (col < 0 || col >= COLS) return true;
-  if (row < 0 || row >= ROWS) return false;
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return false;
   const tile = map[row][col];
-  return tile !== 1 && tile !== 4;
-}
-
-function isWalkableGhost(col, row, ghost) {
-  if (col < 0 || col >= COLS) return true;
-  if (row < 0 || row >= ROWS) return false;
-  const tile = map[row][col];
-  // Ghosts can walk through ghost house when leaving
-  if (tile === 4) return true;
   return tile !== 1;
 }
 
-function wrapX(x) {
-  if (x < -1) return COLS - 1;
-  if (x >= COLS) return 0;
-  return x;
-}
-
-// ==========================================
-//  PLAYER UPDATE
-// ==========================================
 function updatePlayer() {
   if (gameState !== 'playing') return;
+
+  const speed = player.slowedTimer > 0 ? player.speed * 0.4 : player.speed;
+  if (player.slowedTimer > 0) player.slowedTimer--;
 
   // Try to turn
   const nx = player.x + DX[player.nextDir];
@@ -415,184 +661,235 @@ function updatePlayer() {
   const targetY = player.y + dy;
 
   if (isWalkable(targetX, targetY)) {
-    player.moveProgress += PLAYER_SPEED;
+    player.moveProgress += speed;
     if (player.moveProgress >= 1) {
       player.moveProgress = 0;
-      player.x = wrapX(targetX);
+      player.prevX = player.x;
+      player.prevY = player.y;
+      player.x = targetX;
       player.y = targetY;
+      playFootstepSound();
+    }
+  }
+}
 
-      // Eat dot
-      if (player.y >= 0 && player.y < ROWS && player.x >= 0 && player.x < COLS) {
-        const tile = map[player.y][player.x];
-        if (tile === 0) {
-          map[player.y][player.x] = 2;
-          score += 10;
-          dotsEaten++;
-        } else if (tile === 3) {
-          map[player.y][player.x] = 2;
-          score += 50;
-          dotsEaten++;
-          // Frighten ghosts!
-          frightenedTimer = FRIGHTENED_DURATION;
-          ghosts.forEach(g => {
-            if (!g.eaten) {
-              g.frightened = true;
-              // Reverse direction
-              const opp = { left:'right', right:'left', up:'down', down:'up' };
-              g.dir = opp[g.dir] || g.dir;
-            }
+// ==========================================
+//  TIMER
+// ==========================================
+function updateTimer(dt) {
+  if (gameState !== 'playing') return;
+  timerAccumulator += dt;
+  if (timerAccumulator >= 1.0) {
+    timerAccumulator -= 1.0;
+    timer--;
+
+    if (timer <= 15 && timer > 0) {
+      playTimerWarningBeep();
+    }
+
+    if (timer <= 0) {
+      timer = 0;
+      gameState = 'gameover';
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('escape-jergusia-high', highScore);
+      }
+      playGameOverSound();
+      shakeTimer = 30;
+      document.getElementById('gameMsg').innerHTML = 'JERGUSIA-7 DESTROYED<br>PRESS ENTER TO TRY AGAIN';
+    }
+  }
+}
+
+// ==========================================
+//  COLLECTIBLES
+// ==========================================
+function checkCollectiblePickup() {
+  collectibles.forEach(c => {
+    if (!c.collected && c.x === player.x && c.y === player.y) {
+      c.collected = true;
+      score += 100;
+      playCollectSound();
+      // Spawn particles
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI * 2 / 8) * i;
+        particles.push({
+          x: c.x * TILE + TILE / 2,
+          y: c.y * TILE + TILE / 2,
+          vx: Math.cos(angle) * 2,
+          vy: Math.sin(angle) * 2,
+          life: 30,
+          maxLife: 30,
+          color: '#ffcc00',
+          size: 3,
+        });
+      }
+      updateHUD();
+    }
+  });
+}
+
+// ==========================================
+//  HAZARDS
+// ==========================================
+function updateHazards() {
+  hazards.forEach(h => {
+    if (h.type === 'crack') {
+      // Check if player is on crack
+      if (player.x === h.x && player.y === h.y && player.slowedTimer <= 0) {
+        player.slowedTimer = 45;
+        playSlowSound();
+      }
+    } else if (h.type === 'debris') {
+      h.cycleTimer++;
+      if (h.phase === 'clear' && h.cycleTimer >= h.clearDuration) {
+        h.phase = 'warning';
+        h.cycleTimer = 0;
+      } else if (h.phase === 'warning' && h.cycleTimer >= h.warningDuration) {
+        h.phase = 'drop';
+        h.cycleTimer = 0;
+      } else if (h.phase === 'drop' && h.cycleTimer >= h.dropDuration) {
+        h.phase = 'clear';
+        h.cycleTimer = 0;
+      }
+
+      // Check collision during drop
+      if (h.phase === 'drop' && player.x === h.x && player.y === h.y && h.cycleTimer < 5) {
+        // Knock player back
+        if (isWalkable(player.prevX, player.prevY)) {
+          player.x = player.prevX;
+          player.y = player.prevY;
+        }
+        player.moveProgress = 0;
+        timer = Math.max(0, timer - 3);
+        shakeTimer = 10;
+        playHazardSound();
+        // Debris particles
+        for (let i = 0; i < 6; i++) {
+          particles.push({
+            x: h.x * TILE + TILE / 2 + (Math.random() - 0.5) * TILE,
+            y: h.y * TILE + TILE / 2,
+            vx: (Math.random() - 0.5) * 3,
+            vy: -Math.random() * 3,
+            life: 25,
+            maxLife: 25,
+            color: '#886644',
+            size: 2 + Math.random() * 3,
           });
         }
       }
-
-      // Check win
-      if (dotsEaten >= totalDots) {
-        gameState = 'win';
-        if (score > highScore) {
-          highScore = score;
-          localStorage.setItem('jordman-high', highScore);
-        }
-        updateHUD();
-        document.getElementById('gameMsg').textContent = 'YOU WIN! PRESS ENTER TO PLAY AGAIN';
-      }
-    }
-  }
-}
-
-// ==========================================
-//  GHOST AI
-// ==========================================
-function updateGhosts() {
-  if (gameState !== 'playing') return;
-
-  // Frightened timer
-  if (frightenedTimer > 0) {
-    frightenedTimer--;
-    if (frightenedTimer <= 0) {
-      ghosts.forEach(g => { g.frightened = false; });
-    }
-  }
-
-  ghosts.forEach((g, idx) => {
-    // Start delay
-    if (!g.started) {
-      g.startDelay--;
-      if (g.startDelay <= 0) {
-        g.started = true;
-        g.x = 10;
-        g.y = 7;
-        g.dir = 'left';
-        g.moveProgress = 0;
-      }
-      return;
-    }
-
-    const speed = g.frightened ? GHOST_FRIGHTENED_SPEED : GHOST_SPEED;
-    g.moveProgress += speed;
-
-    if (g.moveProgress >= 1) {
-      g.moveProgress = 0;
-      g.x = wrapX(g.x + DX[g.dir]);
-      g.y = g.y + DY[g.dir];
-
-      // Choose next direction at intersections
-      const dirs = ['up', 'down', 'left', 'right'];
-      const opp = { left:'right', right:'left', up:'down', down:'up' };
-      const possible = dirs.filter(d => {
-        if (d === opp[g.dir]) return false;
-        const nx = g.x + DX[d];
-        const ny = g.y + DY[d];
-        return isWalkableGhost(nx, ny, g);
-      });
-
-      if (possible.length === 0) {
-        // Dead end, reverse
-        g.dir = opp[g.dir];
-      } else if (g.frightened) {
-        // Random when frightened
-        g.dir = possible[Math.floor(Math.random() * possible.length)];
-      } else {
-        // Chase: move toward player (simple)
-        let bestDir = possible[0];
-        let bestDist = Infinity;
-        // Scatter corners for variety
-        let targetX = player.x;
-        let targetY = player.y;
-
-        // Blinky chases directly
-        // Pinky targets 4 ahead
-        if (idx === 1) {
-          targetX = player.x + DX[player.dir] * 4;
-          targetY = player.y + DY[player.dir] * 4;
-        }
-        // Inky: random-ish
-        if (idx === 2) {
-          targetX = player.x + DX[player.dir] * 2;
-          targetY = player.y + DY[player.dir] * 2;
-        }
-        // Clyde: runs away when close
-        if (idx === 3) {
-          const dist = Math.abs(g.x - player.x) + Math.abs(g.y - player.y);
-          if (dist < 8) {
-            targetX = 0;
-            targetY = ROWS - 1;
-          }
-        }
-
-        possible.forEach(d => {
-          const nx = g.x + DX[d];
-          const ny = g.y + DY[d];
-          const dist = (nx - targetX) ** 2 + (ny - targetY) ** 2;
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestDir = d;
-          }
-        });
-        g.dir = bestDir;
-      }
-    }
-  });
-
-  // Collision with player
-  ghosts.forEach(g => {
-    if (!g.started) return;
-    const dx = Math.abs(g.x + DX[g.dir] * g.moveProgress - (player.x + DX[player.dir] * player.moveProgress));
-    const dy = Math.abs(g.y + DY[g.dir] * g.moveProgress - (player.y + DY[player.dir] * player.moveProgress));
-    if (dx < 0.7 && dy < 0.7) {
-      if (g.frightened) {
-        // Eat ghost!
-        g.frightened = false;
-        g.x = 10;
-        g.y = 9;
-        g.moveProgress = 0;
-        g.dir = 'up';
-        score += 200;
-        updateHUD();
-      } else {
-        // Player dies
-        lives--;
-        updateHUD();
-        if (lives <= 0) {
-          gameState = 'gameover';
-          if (score > highScore) {
-            highScore = score;
-            localStorage.setItem('jordman-high', highScore);
-          }
-          updateHUD();
-          document.getElementById('gameMsg').textContent = 'GAME OVER — PRESS ENTER';
-        } else {
-          gameState = 'dead';
-          deathTimer = 90;
-        }
-      }
     }
   });
 }
 
 // ==========================================
-//  DRAWING
+//  GOAL CHECK
+// ==========================================
+function checkGoalReached() {
+  if (player.x === goalPos.x && player.y === goalPos.y) {
+    if (currentStage === 1) {
+      // Time bonus
+      score += Math.ceil(timer) * 10;
+      playStageCompleteSound();
+      gameState = 'cutscene';
+      cutsceneTimer = 0;
+      cutscenePhase = 0;
+      updateHUD();
+    } else {
+      // Win!
+      score += Math.ceil(timer) * 10;
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('escape-jergusia-high', highScore);
+      }
+      gameState = 'win';
+      playWinSound();
+      updateHUD();
+      document.getElementById('gameMsg').innerHTML = 'ESCAPED JERGUSIA-7!<br>SCORE: ' + score + '<br>PRESS ENTER TO PLAY AGAIN';
+    }
+  }
+}
+
+// ==========================================
+//  CUTSCENE
+// ==========================================
+function updateCutscene() {
+  cutsceneTimer++;
+  if (cutsceneTimer > 210) {
+    // Transition to stage 2
+    loadStage(2);
+    gameState = 'playing';
+    document.getElementById('gameMsg').textContent = '';
+  }
+}
+
+function drawCutscene() {
+  // Dark overlay
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.textAlign = 'center';
+  ctx.font = '14px "Press Start 2P"';
+
+  // Line 1: always show
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 15;
+  ctx.fillText('CHAI IS SAFE!', canvas.width / 2, canvas.height / 2 - 40);
+
+  // Line 2: after 1 sec
+  if (cutsceneTimer > 70) {
+    ctx.fillStyle = '#ff0';
+    ctx.shadowColor = '#ff0';
+    ctx.shadowBlur = 10;
+    ctx.font = '11px "Press Start 2P"';
+    ctx.fillText('NOW SAVE JORDAN!', canvas.width / 2, canvas.height / 2);
+  }
+
+  // Line 3: after 2 sec
+  if (cutsceneTimer > 140) {
+    ctx.fillStyle = '#ff4444';
+    ctx.shadowColor = '#ff4444';
+    ctx.shadowBlur = 10;
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillText('THE PLANET IS CRUMBLING...', canvas.width / 2, canvas.height / 2 + 40);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+// ==========================================
+//  PARTICLES
+// ==========================================
+function updateParticles() {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05; // gravity
+    p.life--;
+    if (p.life <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ==========================================
+//  DRAWING — MAP
 // ==========================================
 function drawMap() {
+  const config = STAGE_CONFIG[currentStage];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       const tile = map[r][c];
@@ -600,173 +897,604 @@ function drawMap() {
       const y = r * TILE;
 
       if (tile === 1) {
-        ctx.fillStyle = '#2233dd';
+        ctx.fillStyle = config.wallColor1;
         ctx.fillRect(x, y, TILE, TILE);
-        // Inner wall shading
-        ctx.fillStyle = '#1122aa';
+        ctx.fillStyle = config.wallColor2;
         ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
-        // Bright border
-        ctx.strokeStyle = '#4455ff';
+        ctx.strokeStyle = config.wallBorder;
         ctx.lineWidth = 1;
         ctx.strokeRect(x + 1, y + 1, TILE - 2, TILE - 2);
-      } else if (tile === 0) {
-        // Dot
-        ctx.fillStyle = '#ffcc00';
-        ctx.beginPath();
-        ctx.arc(x + TILE/2, y + TILE/2, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (tile === 3) {
-        // Power pellet (pulsing)
-        const pulse = 4 + Math.sin(frame * 0.1) * 2;
-        ctx.fillStyle = '#ffcc00';
-        ctx.beginPath();
-        ctx.arc(x + TILE/2, y + TILE/2, pulse, 0, Math.PI * 2);
-        ctx.fill();
+      } else {
+        // Floor
+        ctx.fillStyle = config.floorColor;
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x, y, TILE, TILE);
       }
     }
   }
+
+  // Draw start marker
+  drawStartMarker();
+  // Draw goal marker
+  drawEscapePod();
+  // Draw hazard visuals on the floor
+  drawHazardTiles();
 }
 
-function drawPlayer() {
-  const px = (player.x + DX[player.dir] * player.moveProgress) * TILE;
-  const py = (player.y + DY[player.dir] * player.moveProgress) * TILE;
-  const size = TILE + 4;
+function drawStartMarker() {
+  const sx = startPos.x * TILE;
+  const sy = startPos.y * TILE;
 
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(px + TILE/2, py + TILE/2, size/2, 0, Math.PI * 2);
-  ctx.closePath();
-  ctx.clip();
-
-  if (faceImg.complete && faceImg.naturalWidth > 0) {
-    ctx.drawImage(faceImg, px + TILE/2 - size/2, py + TILE/2 - size/2, size, size);
+  if (currentStage === 1) {
+    // Cat bed: oval cushion in brown frame
+    ctx.fillStyle = '#6B4914';
+    ctx.beginPath();
+    ctx.ellipse(sx + TILE / 2, sy + TILE / 2 + 2, 10, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#D4A074';
+    ctx.beginPath();
+    ctx.ellipse(sx + TILE / 2, sy + TILE / 2 + 1, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Small pillow
+    ctx.fillStyle = '#E8C8A0';
+    ctx.beginPath();
+    ctx.ellipse(sx + TILE / 2, sy + TILE / 2 - 1, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
   } else {
-    ctx.fillStyle = '#ff0';
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // Chomping mouth overlay
-  const mouthOpen = Math.abs(Math.sin(frame * 0.2)) * 0.4;
-  if (mouthOpen > 0.05) {
-    ctx.save();
-    ctx.fillStyle = '#0a0a0a';
-    ctx.beginPath();
-    ctx.moveTo(px + TILE/2, py + TILE/2);
-
-    let startAngle, endAngle;
-    switch (player.dir) {
-      case 'right': startAngle = mouthOpen; endAngle = -mouthOpen; break;
-      case 'left':  startAngle = Math.PI + mouthOpen; endAngle = Math.PI - mouthOpen; break;
-      case 'up':    startAngle = -Math.PI/2 + mouthOpen; endAngle = -Math.PI/2 - mouthOpen; break;
-      case 'down':  startAngle = Math.PI/2 + mouthOpen; endAngle = Math.PI/2 - mouthOpen; break;
+    // Baby crib
+    ctx.strokeStyle = '#CCAA77';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx + 3, sy + 4, TILE - 6, TILE - 6);
+    for (let i = 0; i < 4; i++) {
+      const bx = sx + 6 + i * 4;
+      ctx.beginPath();
+      ctx.moveTo(bx, sy + 4);
+      ctx.lineTo(bx, sy + TILE - 2);
+      ctx.stroke();
     }
-    ctx.arc(px + TILE/2, py + TILE/2, size/2 + 1, startAngle, endAngle, true);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    // Small blanket
+    ctx.fillStyle = '#8899bb';
+    ctx.fillRect(sx + 5, sy + 10, TILE - 10, 6);
   }
 }
 
-function drawGhosts() {
-  ghosts.forEach((g, idx) => {
-    if (!g.started) return;
-    const gx = (g.x + DX[g.dir] * g.moveProgress) * TILE;
-    const gy = (g.y + DY[g.dir] * g.moveProgress) * TILE;
+function drawEscapePod() {
+  const gx = goalPos.x * TILE;
+  const gy = goalPos.y * TILE;
+  const cx = gx + TILE / 2;
+  const cy = gy + TILE / 2;
 
-    // Body
-    let color = g.color;
-    if (g.frightened) {
-      color = frightenedTimer < 100 && Math.floor(frame/8) % 2 === 0 ? '#fff' : '#2121de';
-    }
+  // Glow
+  const glowIntensity = 0.4 + Math.sin(frame * 0.05) * 0.2;
+  ctx.save();
+  ctx.shadowColor = '#00ffaa';
+  ctx.shadowBlur = 12 + glowIntensity * 8;
 
-    ctx.fillStyle = color;
-    // Ghost shape: rounded top, wavy bottom
+  // Pod body
+  ctx.fillStyle = '#667788';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + 1, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Window
+  ctx.fillStyle = '#aaddff';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 3, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Antenna
+  ctx.strokeStyle = '#aabbcc';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 10);
+  ctx.lineTo(cx, cy - 15);
+  ctx.stroke();
+
+  // Antenna light
+  if (Math.floor(frame / 20) % 2 === 0) {
+    ctx.fillStyle = '#ff4444';
     ctx.beginPath();
-    ctx.arc(gx + TILE/2, gy + TILE/2 - 2, TILE/2 - 1, Math.PI, 0);
-    ctx.lineTo(gx + TILE - 2, gy + TILE - 2);
-
-    // Wavy bottom
-    const wave = Math.sin(frame * 0.3) * 2;
-    for (let i = TILE - 2; i >= 2; i -= 4) {
-      ctx.lineTo(gx + i, gy + TILE - 2 + (i % 8 < 4 ? wave : -wave));
-    }
-    ctx.closePath();
+    ctx.arc(cx, cy - 15, 1.5, 0, Math.PI * 2);
     ctx.fill();
+  }
 
-    // Eyes
-    if (!g.frightened) {
-      // White eyes
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.ellipse(gx + TILE/2 - 4, gy + TILE/2 - 3, 4, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(gx + TILE/2 + 4, gy + TILE/2 - 3, 4, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
+  // Pod label
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#aabbcc';
+  ctx.font = '4px "Press Start 2P"';
+  ctx.textAlign = 'center';
+  ctx.fillText('POD', cx, cy + 6);
+  ctx.textAlign = 'left';
 
-      // Pupils - look toward player
-      const lookX = Math.sign(player.x - g.x) * 2;
-      const lookY = Math.sign(player.y - g.y) * 2;
-      ctx.fillStyle = '#00f';
+  ctx.restore();
+}
+
+function drawHazardTiles() {
+  hazards.forEach(h => {
+    const hx = h.x * TILE;
+    const hy = h.y * TILE;
+
+    if (h.type === 'crack') {
+      // Draw crack lines on floor
+      ctx.strokeStyle = '#553322';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(gx + TILE/2 - 4 + lookX, gy + TILE/2 - 3 + lookY, 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(gx + TILE/2 + 4 + lookX, gy + TILE/2 - 3 + lookY, 2, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // Frightened eyes
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(gx + TILE/2 - 5, gy + TILE/2 - 3, 3, 3);
-      ctx.fillRect(gx + TILE/2 + 2, gy + TILE/2 - 3, 3, 3);
-      // Squiggly mouth
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(gx + 5, gy + TILE/2 + 3);
-      for (let i = 0; i < 5; i++) {
-        ctx.lineTo(gx + 5 + i * 3, gy + TILE/2 + 3 + (i % 2 === 0 ? -2 : 2));
-      }
+      ctx.moveTo(hx + 3, hy + 5);
+      ctx.lineTo(hx + 10, hy + 12);
+      ctx.lineTo(hx + 8, hy + 18);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(hx + 10, hy + 12);
+      ctx.lineTo(hx + 18, hy + 8);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(hx + 14, hy + 3);
+      ctx.lineTo(hx + 12, hy + 10);
+      ctx.lineTo(hx + 20, hy + 16);
+      ctx.stroke();
+      // Warning glow when player is near
+      const dist = Math.abs(player.x - h.x) + Math.abs(player.y - h.y);
+      if (dist <= 2) {
+        ctx.fillStyle = 'rgba(85, 51, 34, 0.15)';
+        ctx.fillRect(hx, hy, TILE, TILE);
+      }
+    } else if (h.type === 'debris') {
+      if (h.phase === 'warning') {
+        // Shadow on ground pulsing
+        const pulse = 0.15 + Math.sin(h.cycleTimer * 0.2) * 0.1;
+        ctx.fillStyle = `rgba(100, 50, 20, ${pulse})`;
+        ctx.beginPath();
+        ctx.ellipse(hx + TILE / 2, hy + TILE / 2 + 3, 8, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Warning exclamation
+        if (Math.floor(frame / 10) % 2 === 0) {
+          ctx.fillStyle = '#ff6644';
+          ctx.font = '10px "Press Start 2P"';
+          ctx.textAlign = 'center';
+          ctx.fillText('!', hx + TILE / 2, hy + TILE / 2 - 4);
+          ctx.textAlign = 'left';
+        }
+      } else if (h.phase === 'drop') {
+        // Falling rock
+        const dropProgress = h.cycleTimer / h.dropDuration;
+        const rockY = hy - 30 + dropProgress * 30;
+        ctx.fillStyle = '#886655';
+        ctx.beginPath();
+        ctx.arc(hx + TILE / 2, rockY + TILE / 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#665544';
+        ctx.beginPath();
+        ctx.arc(hx + TILE / 2 + 1, rockY + TILE / 2 + 1, 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Dust on ground if near end
+        if (dropProgress > 0.7) {
+          ctx.fillStyle = 'rgba(100, 80, 60, 0.3)';
+          ctx.beginPath();
+          ctx.ellipse(hx + TILE / 2, hy + TILE - 3, 10 * dropProgress, 3, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
   });
 }
 
 // ==========================================
+//  DRAWING — COLLECTIBLES
+// ==========================================
+function drawCollectibles() {
+  collectibles.forEach((c, idx) => {
+    if (c.collected) return;
+    const cx = c.x * TILE + TILE / 2;
+    const cy = c.y * TILE + TILE / 2 + Math.sin(frame * 0.08 + idx) * 2;
+
+    ctx.save();
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur = 6;
+
+    switch (c.type) {
+      case 'yarn_ball':
+        ctx.fillStyle = '#ff66aa';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Thread lines
+        ctx.strokeStyle = '#ff99cc';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx + 1, cy - 1, 2, Math.PI * 0.5, Math.PI * 1.5);
+        ctx.stroke();
+        break;
+
+      case 'mouse_toy':
+        // Body
+        ctx.fillStyle = '#aaaaaa';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 5, 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Ears
+        ctx.fillStyle = '#ffaaaa';
+        ctx.beginPath();
+        ctx.arc(cx - 3, cy - 3, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 3, cy - 3, 2, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + 5, cy);
+        ctx.quadraticCurveTo(cx + 9, cy - 3, cx + 8, cy + 2);
+        ctx.stroke();
+        break;
+
+      case 'fish_treat':
+        ctx.fillStyle = '#ffaa44';
+        ctx.beginPath();
+        ctx.ellipse(cx - 1, cy, 5, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Tail fin
+        ctx.beginPath();
+        ctx.moveTo(cx + 4, cy);
+        ctx.lineTo(cx + 8, cy - 3);
+        ctx.lineTo(cx + 8, cy + 3);
+        ctx.closePath();
+        ctx.fill();
+        // Eye
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(cx - 3, cy - 1, 1, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'bottle':
+        ctx.fillStyle = '#aaddff';
+        ctx.fillRect(cx - 3, cy - 4, 6, 8);
+        // Nipple
+        ctx.fillStyle = '#ffddaa';
+        ctx.beginPath();
+        ctx.arc(cx, cy - 5, 3, Math.PI, 0);
+        ctx.fill();
+        // Milk lines
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(cx - 2, cy - 1, 4, 4);
+        break;
+
+      case 'pacifier':
+        // Shield
+        ctx.fillStyle = '#ffcc88';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Nipple
+        ctx.fillStyle = '#ffddaa';
+        ctx.beginPath();
+        ctx.arc(cx, cy + 2, 3, 0, Math.PI);
+        ctx.fill();
+        // Handle
+        ctx.strokeStyle = '#ddaa66';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy - 4, 3, Math.PI, 0);
+        ctx.stroke();
+        break;
+
+      case 'teddy_bear':
+        // Head
+        ctx.fillStyle = '#bb8844';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // Ears
+        ctx.beginPath();
+        ctx.arc(cx - 4, cy - 4, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 4, cy - 4, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Inner ears
+        ctx.fillStyle = '#cc9955';
+        ctx.beginPath();
+        ctx.arc(cx - 4, cy - 4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 4, cy - 4, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Eyes
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(cx - 2, cy - 1, 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(cx + 2, cy - 1, 1, 0, Math.PI * 2);
+        ctx.fill();
+        // Nose
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(cx, cy + 1, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+    }
+
+    ctx.restore();
+  });
+}
+
+// ==========================================
+//  DRAWING — CHARACTERS
+// ==========================================
+function drawChai(px, py) {
+  const cx = px + TILE / 2;
+  const cy = py + TILE / 2;
+
+  // Body
+  ctx.fillStyle = '#e0cdb0';
+  ctx.fillRect(cx - 5, cy + 1, 10, 7);
+
+  // Head
+  ctx.fillStyle = '#f0e0c8';
+  ctx.beginPath();
+  ctx.arc(cx, cy - 2, 7, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ears
+  ctx.fillStyle = '#c4a882';
+  ctx.beginPath();
+  ctx.moveTo(cx - 6, cy - 6);
+  ctx.lineTo(cx - 3, cy - 13);
+  ctx.lineTo(cx, cy - 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 6);
+  ctx.lineTo(cx + 3, cy - 13);
+  ctx.lineTo(cx + 6, cy - 6);
+  ctx.fill();
+
+  // Inner ears
+  ctx.fillStyle = '#d4a078';
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 7);
+  ctx.lineTo(cx - 3, cy - 12);
+  ctx.lineTo(cx - 1, cy - 7);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 1, cy - 7);
+  ctx.lineTo(cx + 3, cy - 12);
+  ctx.lineTo(cx + 5, cy - 7);
+  ctx.fill();
+
+  // Left eye (normal cat eye)
+  ctx.fillStyle = '#66bbff';
+  ctx.beginPath();
+  ctx.arc(cx - 3, cy - 3, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#111';
+  ctx.fillRect(cx - 3.7, cy - 5, 1.5, 4);
+
+  // Right eye (robot scanner)
+  const scanPulse = 0.5 + Math.sin(frame * 0.12) * 0.5;
+  ctx.fillStyle = '#ff2200';
+  ctx.beginPath();
+  ctx.arc(cx + 3, cy - 3, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = `rgba(255, 130, 68, ${scanPulse})`;
+  ctx.beginPath();
+  ctx.arc(cx + 3, cy - 3, 1.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Scanner line
+  ctx.strokeStyle = `rgba(255, 50, 0, ${scanPulse * 0.3})`;
+  ctx.lineWidth = 0.5;
+  const scanAngle = frame * 0.06;
+  ctx.beginPath();
+  ctx.moveTo(cx + 3, cy - 3);
+  ctx.lineTo(cx + 3 + Math.cos(scanAngle) * 12, cy - 3 + Math.sin(scanAngle) * 12);
+  ctx.stroke();
+
+  // Nose
+  ctx.fillStyle = '#dd8899';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx - 1.5, cy + 1.5);
+  ctx.lineTo(cx + 1.5, cy + 1.5);
+  ctx.fill();
+
+  // Whiskers
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth = 0.5;
+  [-1, 0, 1].forEach(offset => {
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy + offset);
+    ctx.lineTo(cx - 11, cy - 2 + offset * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 4, cy + offset);
+    ctx.lineTo(cx + 11, cy - 2 + offset * 2);
+    ctx.stroke();
+  });
+
+  // Robot arm (right side)
+  ctx.fillStyle = '#778899';
+  ctx.fillRect(cx + 5, cy + 2, 3, 5);
+  // Normal paw (left side)
+  ctx.fillStyle = '#e8d5b8';
+  ctx.fillRect(cx - 8, cy + 2, 3, 5);
+
+  // Tail
+  const tailWave = Math.sin(frame * 0.15) * 4;
+  ctx.strokeStyle = '#c4a882';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + 8);
+  ctx.quadraticCurveTo(cx - 6 + tailWave, cy + 13, cx - 4 + tailWave, cy + 16);
+  ctx.stroke();
+
+  // Robot leg indicator (right leg metallic)
+  ctx.fillStyle = '#778899';
+  ctx.fillRect(cx + 2, cy + 7, 3, 3);
+}
+
+function drawJordan(px, py) {
+  const cx = px + TILE / 2;
+  const cy = py + TILE / 2;
+  const faceRadius = TILE / 2;
+
+  // Small body/onesie
+  ctx.fillStyle = '#ff99cc';
+  ctx.fillRect(cx - 5, cy + faceRadius - 5, 10, 8);
+  // Feet
+  ctx.fillStyle = '#ffbbdd';
+  ctx.fillRect(cx - 6, cy + faceRadius + 2, 4, 3);
+  ctx.fillRect(cx + 2, cy + faceRadius + 2, 4, 3);
+
+  // Face image in circle
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy - 1, faceRadius, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  if (faceImg.complete && faceImg.naturalWidth > 0) {
+    const size = faceRadius * 2;
+    ctx.drawImage(faceImg, cx - faceRadius, cy - 1 - faceRadius, size, size);
+  } else {
+    ctx.fillStyle = '#ffcc88';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Subtle glow around Jordan
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255, 200, 100, 0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy - 1, faceRadius + 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlayer() {
+  const interpX = player.x + DX[player.dir] * player.moveProgress;
+  const interpY = player.y + DY[player.dir] * player.moveProgress;
+  const px = interpX * TILE;
+  const py = interpY * TILE;
+
+  // Bounce effect while moving
+  const bounce = player.moveProgress > 0 ? Math.sin(player.moveProgress * Math.PI) * -2 : 0;
+
+  if (currentStage === 1) {
+    drawChai(px, py + bounce);
+  } else {
+    drawJordan(px, py + bounce);
+  }
+
+  // Slow effect visual
+  if (player.slowedTimer > 0) {
+    ctx.fillStyle = 'rgba(85, 51, 34, 0.3)';
+    ctx.beginPath();
+    ctx.arc(px + TILE / 2, py + TILE / 2 + bounce, TILE / 2 + 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ==========================================
+//  STAGE 2 CRUMBLING EFFECTS
+// ==========================================
+function drawCrumblingEffects() {
+  // Periodic screen flash
+  if (frame % 300 < 4) {
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // Random dust particles from top
+  if (frame % 8 === 0) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: -2,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: 0.8 + Math.random() * 1.5,
+      life: 80 + Math.random() * 60,
+      maxLife: 140,
+      color: '#553322',
+      size: 1 + Math.random() * 2,
+    });
+  }
+
+  // Increasing shake as timer gets low
+  if (timer < 20 && frame % 60 === 0) {
+    shakeTimer = Math.max(shakeTimer, 3);
+  }
+  if (timer < 10 && frame % 30 === 0) {
+    shakeTimer = Math.max(shakeTimer, 5);
+  }
+}
+
+// ==========================================
 //  MAIN LOOP
 // ==========================================
-function gameLoop() {
+function gameLoop(timestamp) {
+  if (lastTimestamp === 0) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+  lastTimestamp = timestamp;
+
   frame++;
+
+  // Screen shake
+  ctx.save();
+  if (shakeTimer > 0) {
+    shakeTimer--;
+    const intensity = shakeTimer * 0.5;
+    ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
+  }
+
+  // Clear
   ctx.fillStyle = '#0a0a0a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Draw map
   drawMap();
+
+  // Draw collectibles
+  drawCollectibles();
 
   if (gameState === 'playing') {
     updatePlayer();
-    updateGhosts();
+    updateTimer(dt);
+    updateHazards();
+    updateParticles();
+    checkCollectiblePickup();
+    checkGoalReached();
     updateHUD();
   }
 
-  if (gameState === 'dead') {
-    deathTimer--;
-    if (deathTimer <= 0) {
-      resetPlayer();
-      initGhosts();
-      gameState = 'playing';
-    }
+  if (gameState === 'cutscene') {
+    updateCutscene();
+    updateParticles();
   }
 
-  if (gameState !== 'gameover' && gameState !== 'waiting' && gameState !== 'win') {
+  // Draw player (in most states)
+  if (gameState !== 'gameover' && gameState !== 'cutscene') {
     drawPlayer();
   }
 
-  if (gameState === 'waiting') {
-    drawPlayer();
+  // Draw particles
+  drawParticles();
+
+  // Stage 2 crumbling effects
+  if (currentStage === 2 && gameState === 'playing') {
+    drawCrumblingEffects();
   }
 
-  drawGhosts();
+  // Cutscene overlay
+  if (gameState === 'cutscene') {
+    drawCutscene();
+  }
+
+  ctx.restore();
 
   requestAnimationFrame(gameLoop);
 }
@@ -774,9 +1502,9 @@ function gameLoop() {
 // ==========================================
 //  BOOT
 // ==========================================
-resetMap();
-updateHUD();
-gameLoop();
+loadStage(1);
+document.getElementById('highScore').textContent = highScore;
+requestAnimationFrame(gameLoop);
 </script>
 </body>
 </html>
