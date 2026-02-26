@@ -225,7 +225,7 @@ const MAX_WAVES = 2;
 const WAVE_DURATION = 45; // seconds per wave
 
 // ---- Game State ----
-let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win
+let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win | victoryCutscene
 let score = 0;
 let highScore = parseInt(localStorage.getItem('meteors-high') || '0');
 let lives = 3;
@@ -245,6 +245,14 @@ let timerWarningPlayed = false;
 
 // ---- Scoring ----
 let scoreAccumulator = 0; // accumulates fractional score per frame
+
+// ---- Victory Cutscene ----
+let cutsceneTimer = 0;
+let cutsceneStars = [];
+let cutsceneMeteors = []; // drifting background meteors that thin out
+let radioSignalStarted = false;
+let radioBeepTimer = 0;
+let cutscenePhase = 0; // 0=clearing asteroids, 1=calm space, 2=radio signal
 
 // ==========================================
 //  AUDIO
@@ -364,6 +372,72 @@ function playTimerWarningBeep() {
   gain.connect(audioCtx.destination);
   osc.start(t);
   osc.stop(t + 0.1);
+}
+
+function playRadioBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Eerie short radio blip
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800 + Math.random() * 400, t);
+  osc.frequency.exponentialRampToValueAtTime(600 + Math.random() * 200, t + 0.15);
+  filter.type = 'bandpass';
+  filter.frequency.value = 1200;
+  filter.Q.value = 5;
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.18);
+}
+
+function playRadioStatic() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.4);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2000;
+  filter.Q.value = 3;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.03, t);
+  noiseGain.gain.linearRampToValueAtTime(0.06, t + 0.1);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+  src.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  src.start(t);
+}
+
+function playRadioMessage() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Mysterious alien signal — descending tritone pattern
+  const notes = [660, 466, 660, 466, 330, 233];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t + i * 0.2);
+    gain.gain.setValueAtTime(0.05, t + i * 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.2 + 0.18);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.2);
+    osc.stop(t + i * 0.2 + 0.2);
+  });
 }
 
 // ---- Player (ship) ----
@@ -656,14 +730,15 @@ function updateTimer(dt) {
   if (waveTimeRemaining <= 0) {
     waveTimeRemaining = 0;
     if (wave >= MAX_WAVES) {
-      // WIN!
+      // WIN! Launch victory cutscene
       score += 1000; // Final bonus
-      gameState = 'win';
       localStorage.setItem('level-3-complete', 'true');
       playWinSound();
       saveHighScore();
       updateHUD();
-      document.getElementById('gameMsg').innerHTML = 'SURVIVED THE STORM!<br>PRESS ENTER TO PLAY AGAIN';
+      document.getElementById('gameMsg').textContent = '';
+      gameState = 'victoryCutscene';
+      initCutscene();
     } else {
       // Wave transition
       waveBonusAmount = 500;
@@ -1146,6 +1221,344 @@ function drawWinOverlay() {
 }
 
 // ==========================================
+//  VICTORY CUTSCENE
+// ==========================================
+function initCutscene() {
+  cutsceneTimer = 0;
+  cutscenePhase = 0;
+  radioSignalStarted = false;
+  radioBeepTimer = 0;
+
+  // Parallax stars
+  cutsceneStars = [];
+  for (let i = 0; i < 80; i++) {
+    cutsceneStars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: Math.random() * 2.5 + 0.5,
+      speed: 0.5 + Math.random() * 2,
+      brightness: 0.3 + Math.random() * 0.7,
+    });
+  }
+
+  // A few trailing meteors that drift away
+  cutsceneMeteors = [];
+  for (let i = 0; i < 8; i++) {
+    cutsceneMeteors.push({
+      x: Math.random() * W,
+      y: Math.random() * H * 0.7,
+      radius: 6 + Math.random() * 20,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: -0.5 - Math.random() * 1.5, // float upward/away
+      rotation: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 0.04,
+      color: ['#8B7355', '#6B5B45', '#7A6B5A', '#808080'][Math.floor(Math.random() * 4)],
+      alpha: 0.8,
+    });
+  }
+}
+
+function updateCutscene() {
+  cutsceneTimer++;
+
+  // Update stars (scrolling downward — ship moving forward)
+  for (const s of cutsceneStars) {
+    s.y += s.speed;
+    if (s.y > H) { s.y = -2; s.x = Math.random() * W; }
+  }
+
+  // Phase transitions
+  if (cutsceneTimer < 180) {
+    cutscenePhase = 0; // Clearing the asteroid field
+  } else if (cutsceneTimer < 360) {
+    cutscenePhase = 1; // Calm space, arriving at safe orbit
+  } else {
+    cutscenePhase = 2; // Radio signal
+  }
+
+  // Update trailing meteors (drift away and fade)
+  for (let i = cutsceneMeteors.length - 1; i >= 0; i--) {
+    const m = cutsceneMeteors[i];
+    m.x += m.vx;
+    m.y += m.vy;
+    m.rotation += m.rotSpeed;
+    // Fade them out gradually
+    m.alpha -= 0.003;
+    if (m.alpha <= 0 || m.y < -50 || m.x < -50 || m.x > W + 50) {
+      cutsceneMeteors.splice(i, 1);
+    }
+  }
+
+  // Radio signal phase
+  if (cutscenePhase === 2) {
+    if (!radioSignalStarted) {
+      radioSignalStarted = true;
+      playRadioStatic();
+    }
+
+    // Periodic beeps
+    radioBeepTimer++;
+    if (radioBeepTimer === 30) playRadioBeep();
+    if (radioBeepTimer === 50) playRadioBeep();
+    if (radioBeepTimer === 70) playRadioBeep();
+    if (radioBeepTimer === 110) playRadioMessage();
+    if (radioBeepTimer === 200) playRadioBeep();
+    if (radioBeepTimer === 220) playRadioBeep();
+  }
+
+  // Auto-redirect at ~10 seconds
+  if (cutsceneTimer >= 600) {
+    window.location.href = 'index.html';
+  }
+}
+
+function drawCutscene() {
+  // Black background
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Scrolling stars
+  for (const s of cutsceneStars) {
+    const flicker = s.brightness * (0.8 + Math.sin(frame * 0.03 + s.x) * 0.2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${flicker})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  }
+
+  // Trailing meteors (fading away)
+  cutsceneMeteors.forEach(m => {
+    ctx.save();
+    ctx.globalAlpha = m.alpha;
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.rotation);
+    ctx.fillStyle = m.color;
+    ctx.beginPath();
+    // Simple jagged shape
+    for (let i = 0; i < 8; i++) {
+      const a = (Math.PI * 2 / 8) * i;
+      const r = m.radius * (0.7 + Math.sin(i * 2.3) * 0.3);
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  });
+
+  // Ship (pod) — centered, flying forward
+  const podX = W / 2;
+  const podY = H * 0.55;
+  const wobble = Math.sin(cutsceneTimer * 0.03) * 3;
+
+  // Engine flame (flickering)
+  const flameLen = 12 + Math.random() * 8;
+  ctx.fillStyle = '#ff8800';
+  ctx.beginPath();
+  ctx.moveTo(podX - 8, podY + 22);
+  ctx.lineTo(podX, podY + 22 + flameLen);
+  ctx.lineTo(podX + 8, podY + 22);
+  ctx.fill();
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.moveTo(podX - 4, podY + 22);
+  ctx.lineTo(podX, podY + 22 + flameLen * 0.6);
+  ctx.lineTo(podX + 4, podY + 22);
+  ctx.fill();
+
+  // Pod body (horizontal ellipse)
+  ctx.beginPath();
+  ctx.ellipse(podX, podY + wobble, 38, 20, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#667788';
+  ctx.fill();
+  ctx.strokeStyle = '#8899aa';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Pod window
+  ctx.beginPath();
+  ctx.arc(podX + 8, podY - 4 + wobble, 13, 0, Math.PI * 2);
+  ctx.fillStyle = '#aaddff';
+  ctx.fill();
+  ctx.strokeStyle = '#88aacc';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Jordan's face in window
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(podX + 8, podY - 4 + wobble, 11, 0, Math.PI * 2);
+  ctx.clip();
+  if (faceImg.complete && faceImg.naturalWidth > 0) {
+    ctx.drawImage(faceImg, podX - 3, podY - 15 + wobble, 22, 22);
+  } else {
+    ctx.fillStyle = '#ffcc99';
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Chai on top of pod
+  const cx = podX - 14, cy = podY - 18 + wobble;
+  // Chai head
+  ctx.beginPath();
+  ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#ddc89e';
+  ctx.fill();
+  // Ears
+  ctx.fillStyle = '#ddc89e';
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 4);
+  ctx.lineTo(cx - 7, cy - 11);
+  ctx.lineTo(cx - 1, cy - 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 5, cy - 4);
+  ctx.lineTo(cx + 7, cy - 11);
+  ctx.lineTo(cx + 1, cy - 6);
+  ctx.fill();
+  // Cat eyes
+  ctx.fillStyle = '#4488cc';
+  ctx.fillRect(cx - 3, cy - 2, 2, 2);
+  ctx.fillStyle = '#ff3333';
+  ctx.fillRect(cx + 1, cy - 2, 2, 2);
+
+  // Pod antenna
+  ctx.strokeStyle = '#aabbcc';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(podX + 22, podY - 10 + wobble);
+  ctx.lineTo(podX + 30, podY - 24 + wobble);
+  ctx.stroke();
+  // Blinking antenna light
+  const antennaGlow = cutscenePhase === 2 && frame % 10 < 5;
+  ctx.beginPath();
+  ctx.arc(podX + 30, podY - 24 + wobble, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = antennaGlow ? '#00ff00' : (frame % 30 < 15 ? '#ff0000' : '#440000');
+  ctx.fill();
+  if (antennaGlow) {
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // Pod label
+  ctx.font = '4px "Press Start 2P"';
+  ctx.fillStyle = '#aabbcc';
+  ctx.textAlign = 'center';
+  ctx.fillText('JERGUSIA-7', podX, podY + 16 + wobble);
+
+  // === TEXT OVERLAYS ===
+  ctx.textAlign = 'center';
+
+  // Phase 0: Clearing asteroids
+  if (cutscenePhase === 0 && cutsceneTimer >= 30) {
+    const alpha = Math.min((cutsceneTimer - 30) / 40, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '11px "Press Start 2P"';
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.shadowBlur = 15;
+    ctx.fillText('SURVIVED THE STORM!', W / 2, 80);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  // Phase 0→1: Score
+  if (cutsceneTimer >= 90 && cutsceneTimer < 360) {
+    const alpha = Math.min((cutsceneTimer - 90) / 30, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillStyle = '#ff0';
+    ctx.fillText('FINAL SCORE: ' + score, W / 2, 115);
+    ctx.globalAlpha = 1;
+  }
+
+  // Phase 1: Calm space text
+  if (cutscenePhase >= 1 && cutsceneTimer >= 200) {
+    const alpha = Math.min((cutsceneTimer - 200) / 40, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = '#fff';
+    ctx.shadowBlur = 8;
+    ctx.fillText('SAFE ORBIT REACHED', W / 2, H - 120);
+    ctx.shadowBlur = 0;
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('JORDAN AND CHAI CATCH THEIR BREATH', W / 2, H - 95);
+    ctx.globalAlpha = 1;
+  }
+
+  // Phase 2: Radio signal!
+  if (cutscenePhase === 2) {
+    const phaseT = cutsceneTimer - 360;
+
+    // "WAIT..." text
+    if (phaseT >= 10) {
+      const alpha = Math.min((phaseT - 10) / 20, 1);
+      ctx.globalAlpha = alpha;
+      ctx.font = '8px "Press Start 2P"';
+      ctx.fillStyle = '#ff0';
+      ctx.shadowColor = '#ff0';
+      ctx.shadowBlur = 10;
+      ctx.fillText('WAIT...', W / 2, H - 120);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
+    // Radio signal visualization (animated waveform)
+    if (phaseT >= 40) {
+      const sigAlpha = Math.min((phaseT - 40) / 30, 1);
+      ctx.globalAlpha = sigAlpha;
+
+      // Waveform visualization
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#00ff00';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      for (let x = W / 2 - 80; x <= W / 2 + 80; x += 2) {
+        const nx = (x - W / 2) / 80; // -1 to 1
+        const wave1 = Math.sin(nx * 8 + frame * 0.15) * 8;
+        const wave2 = Math.sin(nx * 12 + frame * 0.1) * 4;
+        const envelope = 1 - nx * nx; // parabolic envelope
+        const y = H - 75 + (wave1 + wave2) * envelope;
+        if (x === W / 2 - 80) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
+    // "INCOMING TRANSMISSION" text
+    if (phaseT >= 70) {
+      const alpha = Math.min((phaseT - 70) / 25, 1);
+      const pulse = 0.7 + Math.sin(frame * 0.1) * 0.3;
+      ctx.globalAlpha = alpha * pulse;
+      ctx.font = '10px "Press Start 2P"';
+      ctx.fillStyle = '#00ff00';
+      ctx.shadowColor = '#00ff00';
+      ctx.shadowBlur = 20;
+      ctx.fillText('INCOMING TRANSMISSION', W / 2, H - 45);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+    }
+
+    // "SOURCE: UNKNOWN" text
+    if (phaseT >= 120) {
+      const alpha = Math.min((phaseT - 120) / 30, 1);
+      ctx.globalAlpha = alpha;
+      ctx.font = '7px "Press Start 2P"';
+      ctx.fillStyle = '#00cc00';
+      ctx.fillText('SOURCE: UNKNOWN', W / 2, H - 22);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.textAlign = 'left';
+}
+
+// ==========================================
 //  MAIN LOOP
 // ==========================================
 function gameLoop(timestamp) {
@@ -1162,6 +1575,15 @@ function gameLoop(timestamp) {
     const sx = (Math.random() - 0.5) * shakeTimer;
     const sy = (Math.random() - 0.5) * shakeTimer;
     ctx.translate(sx, sy);
+  }
+
+  // Victory cutscene takes over all rendering
+  if (gameState === 'victoryCutscene') {
+    updateCutscene();
+    drawCutscene();
+    ctx.restore();
+    requestAnimationFrame(gameLoop);
+    return;
   }
 
   // Clear
