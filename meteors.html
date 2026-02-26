@@ -246,6 +246,15 @@ let timerWarningPlayed = false;
 // ---- Scoring ----
 let scoreAccumulator = 0; // accumulates fractional score per frame
 
+// ---- Shield Power-up ----
+let powerups = [];
+let shieldActive = false;
+let shieldTimer = 0;
+const SHIELD_DURATION = 300; // 5 seconds at 60fps
+const POWERUP_SPAWN_CHANCE = 0.003; // chance per frame during play
+const POWERUP_MIN_INTERVAL = 600; // minimum frames between spawns (~10 sec)
+let lastPowerupSpawnFrame = -999;
+
 // ---- Victory Cutscene ----
 let cutsceneTimer = 0;
 let cutsceneStars = [];
@@ -440,6 +449,59 @@ function playRadioMessage() {
   });
 }
 
+function playShieldPickupSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Ascending sparkle — bright and hopeful
+  const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t + i * 0.06);
+    gain.gain.setValueAtTime(0.08, t + i * 0.06);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.06);
+    osc.stop(t + i * 0.06 + 0.25);
+  });
+}
+
+function playShieldHitSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Metallic deflection ping
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(1800, t);
+  osc.frequency.exponentialRampToValueAtTime(600, t + 0.15);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.25);
+}
+
+function playShieldDownSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Quick descending tone — shield fading
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, t);
+  osc.frequency.exponentialRampToValueAtTime(200, t + 0.3);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.4);
+}
+
 // ---- Player (ship) ----
 const player = {
   x: W / 2,
@@ -609,6 +671,10 @@ function startGame() {
   playerFlashTimer = 0;
   meteors = [];
   particles = [];
+  powerups = [];
+  shieldActive = false;
+  shieldTimer = 0;
+  lastPowerupSpawnFrame = -999;
   waveTimeRemaining = WAVE_DURATION;
   lastTimestamp = 0;
   timerWarningPlayed = false;
@@ -623,6 +689,10 @@ function nextWave() {
   currentPilot = 'chai';
   meteors = [];
   particles = [];
+  powerups = [];
+  shieldActive = false;
+  shieldTimer = 0;
+  lastPowerupSpawnFrame = frame; // Small delay before spawning in wave 2
   player.x = W / 2;
   player.y = H - 60;
   playerFlashTimer = 0;
@@ -769,22 +839,44 @@ function checkCollisions() {
     const minDist = pr + m.radius * 0.7; // forgiveness on meteor too
 
     if (dist < minDist) {
-      // HIT!
-      lives--;
-      shakeTimer = 15;
-      playerFlashTimer = 90; // 1.5 sec invulnerability
-      spawnExplosion(player.x, player.y, -1);
-      playPlayerHitSound();
-      meteors.splice(i, 1); // Remove the meteor that hit
-      updateHUD();
+      if (shieldActive) {
+        // Shield deflects the meteor!
+        shakeTimer = 5;
+        playShieldHitSound();
+        score += 50; // Bonus for shield deflection
+        // Spawn cyan deflection particles
+        for (let j = 0; j < 6; j++) {
+          const a = Math.atan2(m.y - py, m.x - px) + (Math.random() - 0.5) * 1.5;
+          particles.push({
+            x: m.x, y: m.y,
+            vx: Math.cos(a) * (2 + Math.random() * 2),
+            vy: Math.sin(a) * (2 + Math.random() * 2),
+            life: 20 + Math.random() * 10,
+            maxLife: 30,
+            color: ['#00ffff', '#66ffff', '#ffffff'][j % 3],
+            size: 2 + Math.random() * 2,
+          });
+        }
+        meteors.splice(i, 1); // Destroy the meteor
+        updateHUD();
+      } else {
+        // HIT!
+        lives--;
+        shakeTimer = 15;
+        playerFlashTimer = 90; // 1.5 sec invulnerability
+        spawnExplosion(player.x, player.y, -1);
+        playPlayerHitSound();
+        meteors.splice(i, 1); // Remove the meteor that hit
+        updateHUD();
 
-      if (lives <= 0) {
-        gameState = 'gameover';
-        playGameOverSound();
-        saveHighScore();
-        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+        if (lives <= 0) {
+          gameState = 'gameover';
+          playGameOverSound();
+          saveHighScore();
+          document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+        }
+        return; // Only one hit per frame
       }
-      return; // Only one hit per frame
     }
   }
 }
@@ -823,6 +915,172 @@ function updateParticles() {
     p.life--;
   });
   particles = particles.filter(p => p.life > 0);
+}
+
+// ---- Shield Power-ups ----
+function createPowerup() {
+  return {
+    x: 30 + Math.random() * (W - 60),
+    y: -20,
+    radius: 12,
+    speed: 1.2 + Math.random() * 0.8,
+    angle: 0, // for spinning animation
+    sparkleTimer: 0,
+  };
+}
+
+function updatePowerups() {
+  // Spawn new power-up occasionally
+  if (!shieldActive && frame - lastPowerupSpawnFrame > POWERUP_MIN_INTERVAL) {
+    if (Math.random() < POWERUP_SPAWN_CHANCE) {
+      powerups.push(createPowerup());
+      lastPowerupSpawnFrame = frame;
+    }
+  }
+
+  // Update positions
+  powerups.forEach(p => {
+    p.y += p.speed;
+    p.angle += 0.05;
+    p.sparkleTimer++;
+  });
+
+  // Remove off-screen
+  powerups = powerups.filter(p => p.y < H + 30);
+
+  // Check collision with player
+  for (let i = powerups.length - 1; i >= 0; i--) {
+    const p = powerups[i];
+    const dx = player.x - p.x;
+    const dy = player.y - p.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < player.w / 2 + p.radius) {
+      // Picked up!
+      powerups.splice(i, 1);
+      shieldActive = true;
+      shieldTimer = SHIELD_DURATION;
+      playShieldPickupSound();
+      // Spawn sparkle particles at pickup location
+      for (let j = 0; j < 8; j++) {
+        const a = (Math.PI * 2 / 8) * j;
+        particles.push({
+          x: p.x, y: p.y,
+          vx: Math.cos(a) * 2,
+          vy: Math.sin(a) * 2,
+          life: 25,
+          maxLife: 25,
+          color: ['#00ffff', '#66ffff', '#ffffff', '#00ccff'][j % 4],
+          size: 2 + Math.random() * 2,
+        });
+      }
+    }
+  }
+}
+
+function updateShield() {
+  if (shieldActive) {
+    shieldTimer--;
+    if (shieldTimer <= 0) {
+      shieldActive = false;
+      shieldTimer = 0;
+      playShieldDownSound();
+    }
+  }
+}
+
+function drawPowerups() {
+  powerups.forEach(p => {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.angle);
+
+    // Outer glow
+    const pulse = 0.6 + Math.sin(p.sparkleTimer * 0.1) * 0.4;
+    ctx.shadowColor = '#00ffff';
+    ctx.shadowBlur = 12 + pulse * 6;
+
+    // Shield icon — hexagonal shape
+    ctx.fillStyle = `rgba(0, 255, 255, ${0.6 + pulse * 0.3})`;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 / 6) * i - Math.PI / 2;
+      const r = p.radius;
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner "S" for shield
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 11px "Press Start 2P"';
+    ctx.fillStyle = '#003333';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('S', 0, 1);
+
+    ctx.restore();
+
+    // Trailing sparkles
+    if (p.sparkleTimer % 4 === 0) {
+      particles.push({
+        x: p.x + (Math.random() - 0.5) * 16,
+        y: p.y + (Math.random() - 0.5) * 16,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -0.5 - Math.random() * 0.5,
+        life: 15 + Math.random() * 10,
+        maxLife: 25,
+        color: '#00ffff',
+        size: 1 + Math.random() * 2,
+      });
+    }
+  });
+}
+
+function drawShield() {
+  if (!shieldActive) return;
+
+  const cx = player.x;
+  const cy = player.y;
+  const shieldRadius = player.w / 2 + 14;
+
+  // Flicker warning when about to expire (last 1.5 sec / 90 frames)
+  if (shieldTimer < 90 && Math.floor(frame / 6) % 2 === 0) return;
+
+  ctx.save();
+
+  // Outer glow ring
+  const pulse = Math.sin(frame * 0.15) * 0.15;
+  const alpha = 0.3 + pulse;
+  ctx.strokeStyle = `rgba(0, 255, 255, ${alpha + 0.2})`;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 15 + Math.sin(frame * 0.1) * 5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner fill
+  ctx.fillStyle = `rgba(0, 255, 255, ${0.06 + pulse * 0.04})`;
+  ctx.fill();
+
+  // Rotating arc segments for cool effect
+  const segCount = 3;
+  for (let i = 0; i < segCount; i++) {
+    const startAngle = frame * 0.03 + (Math.PI * 2 / segCount) * i;
+    ctx.strokeStyle = `rgba(0, 255, 255, ${0.5 + pulse})`;
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(cx, cy, shieldRadius + 3, startAngle, startAngle + 0.5);
+    ctx.stroke();
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 // ==========================================
@@ -1595,6 +1853,8 @@ function gameLoop(timestamp) {
   if (gameState === 'playing') {
     updatePlayer();
     updateMeteors();
+    updatePowerups();
+    updateShield();
     checkCollisions();
     updateTimer(dt);
     updateParticles();
@@ -1626,7 +1886,9 @@ function gameLoop(timestamp) {
 
   // Draw everything
   drawMeteors();
+  drawPowerups();
   drawPlayer();
+  drawShield();
   drawParticles();
 
   // Timer bar (only during playing)
