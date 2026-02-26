@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A GLIMMER OF HOPE | Jordan's Face .com</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #33ff33;
+      font-family: 'Press Start 2P', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .scanlines {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    header {
+      text-align: center;
+      padding: 15px 10px 5px;
+    }
+
+    .title {
+      font-size: clamp(0.6rem, 2.5vw, 1rem);
+      color: #ff0;
+      text-shadow: 0 0 10px #ff0, 0 0 20px #ffa500;
+    }
+
+    .title a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .title a:hover {
+      text-shadow: 0 0 15px #ff0, 0 0 30px #ffa500, 0 0 45px #ff0;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      padding: 10px 5px;
+      font-size: 0.55rem;
+    }
+
+    .score-label { color: #ff0; }
+    .score-value { color: #fff; margin-left: 5px; }
+    .lives-display { display: flex; gap: 5px; align-items: center; }
+    .life-icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .life-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #gameCanvas {
+      border: 3px solid #333;
+      box-shadow: 0 0 20px rgba(51,255,51,0.2);
+      max-width: calc(100vw - 20px);
+      height: auto;
+    }
+
+    .game-msg {
+      font-size: 0.6rem;
+      color: #33ff33;
+      margin-top: 12px;
+      text-align: center;
+      line-height: 2;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .controls-info {
+      font-size: 0.45rem;
+      color: #555;
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* Virtual keyboard */
+    .keyboard {
+      margin-top: 10px;
+      max-width: 560px;
+      width: 100%;
+      padding: 0 5px;
+      display: none;
+    }
+
+    .keyboard.active { display: block; }
+
+    .kb-row {
+      display: flex;
+      justify-content: center;
+      gap: 3px;
+      margin-bottom: 3px;
+    }
+
+    .kb-key {
+      width: 36px;
+      height: 38px;
+      background: rgba(51,255,51,0.08);
+      border: 2px solid #33ff33;
+      border-radius: 4px;
+      color: #33ff33;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      transition: background 0.1s, border-color 0.1s;
+    }
+
+    .kb-key:active, .kb-key.pressed {
+      background: rgba(51,255,51,0.35);
+    }
+
+    .kb-key.correct-flash {
+      background: rgba(51,255,51,0.5);
+      border-color: #66ff66;
+    }
+
+    .kb-key.wrong-flash {
+      background: rgba(255,50,50,0.4);
+      border-color: #ff3333;
+    }
+
+    .kb-key.wide {
+      width: 64px;
+      font-size: 0.45rem;
+    }
+
+    .kb-key.submit-key {
+      width: 80px;
+      font-size: 0.45rem;
+      border-color: #ff0;
+      color: #ff0;
+    }
+
+    .kb-key.submit-key:active {
+      background: rgba(255,255,0,0.3);
+    }
+
+    .kb-key.cipher-key {
+      width: 50px;
+      font-size: 0.4rem;
+      border-color: #66ddff;
+      color: #66ddff;
+    }
+
+    .kb-key.cipher-key:active, .kb-key.cipher-key.active {
+      background: rgba(102,221,255,0.3);
+    }
+
+    @media (max-width: 600px) {
+      .keyboard { display: block; }
+      .hud {
+        font-size: 0.4rem;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        padding: 5px;
+      }
+      header { padding: 8px 5px 2px; }
+      .kb-key {
+        width: 28px;
+        height: 34px;
+        font-size: 0.45rem;
+      }
+      .kb-key.wide { width: 52px; }
+      .kb-key.submit-key { width: 64px; }
+      .kb-key.cipher-key { width: 44px; }
+    }
+
+    @media (pointer: coarse) {
+      .keyboard { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <h1 class="title"><a href="index.html">A GLIMMER OF HOPE</a></h1>
+  </header>
+
+  <div class="hud">
+    <div>
+      <span class="score-label">SCORE:</span>
+      <span class="score-value" id="score">0</span>
+    </div>
+    <div>
+      <span class="score-label">HI:</span>
+      <span class="score-value" id="highScoreDisplay">0</span>
+    </div>
+    <div>
+      <span class="score-label">WAVE:</span>
+      <span class="score-value" id="wave">JORDAN 1/2</span>
+    </div>
+    <div>
+      <span class="score-label">TIME:</span>
+      <span class="score-value" id="timeDisplay">60</span>
+    </div>
+    <div>
+      <span class="score-label">DECODED:</span>
+      <span class="score-value" id="decodedDisplay">0/6</span>
+    </div>
+    <div class="lives-display">
+      <span class="score-label">LIVES:</span>
+      <span id="livesIcons"></span>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+  <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
+  <p class="controls-info">TYPE THE DECODED MESSAGE &mdash; TAB FOR CIPHER CARD</p>
+
+  <div class="keyboard" id="keyboard">
+    <div class="kb-row">
+      <div class="kb-key cipher-key" id="cipherToggle">📡</div>
+      <div class="kb-key" data-key="Q">Q</div>
+      <div class="kb-key" data-key="W">W</div>
+      <div class="kb-key" data-key="E">E</div>
+      <div class="kb-key" data-key="R">R</div>
+      <div class="kb-key" data-key="T">T</div>
+      <div class="kb-key" data-key="Y">Y</div>
+      <div class="kb-key" data-key="U">U</div>
+      <div class="kb-key" data-key="I">I</div>
+      <div class="kb-key" data-key="O">O</div>
+      <div class="kb-key" data-key="P">P</div>
+    </div>
+    <div class="kb-row">
+      <div class="kb-key" data-key="A">A</div>
+      <div class="kb-key" data-key="S">S</div>
+      <div class="kb-key" data-key="D">D</div>
+      <div class="kb-key" data-key="F">F</div>
+      <div class="kb-key" data-key="G">G</div>
+      <div class="kb-key" data-key="H">H</div>
+      <div class="kb-key" data-key="J">J</div>
+      <div class="kb-key" data-key="K">K</div>
+      <div class="kb-key" data-key="L">L</div>
+    </div>
+    <div class="kb-row">
+      <div class="kb-key wide" id="backspaceKey">⌫ DEL</div>
+      <div class="kb-key" data-key="Z">Z</div>
+      <div class="kb-key" data-key="X">X</div>
+      <div class="kb-key" data-key="C">C</div>
+      <div class="kb-key" data-key="V">V</div>
+      <div class="kb-key" data-key="B">B</div>
+      <div class="kb-key" data-key="N">N</div>
+      <div class="kb-key" data-key="M">M</div>
+      <div class="kb-key submit-key" id="submitKey">SEND</div>
+    </div>
+  </div>
+
+<script>
+// ==========================================
+//  A GLIMMER OF HOPE
+//  Decode alien transmissions!
+// ==========================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const W = 504;
+const H = 450;
+canvas.width = W;
+canvas.height = H;
+
+// Load face image
+const faceImg = new Image();
+faceImg.src = 'images/jordan.jpeg';
+
+// ---- Game Constants ----
+const MAX_WAVES = 2;
+const WAVE_1_TIME = 60;
+const WAVE_2_TIME = 50;
+const WAVE_1_REQUIRED = 6;
+const WAVE_2_REQUIRED = 5;
+const MAX_WRONG_PER_PHRASE = 3;
+
+// ---- Game State ----
+let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win | victoryCutscene
+let score = 0;
+let highScore = parseInt(localStorage.getItem('decode-high') || '0');
+let lives = 3;
+let wave = 1;
+let frame = 0;
+let shakeTimer = 0;
+let waveTransitionTimer = 0;
+const WAVE_TRANSITION_DURATION = 240;
+let waveBonusAmount = 0;
+let currentPilot = 'jordan';
+
+// ---- Timer ----
+let waveTimeRemaining = WAVE_1_TIME;
+let lastTimestamp = 0;
+let timerWarningPlayed = false;
+
+// ---- Decode State ----
+let phrases = [];
+let currentPhraseIndex = 0;
+let currentInput = '';
+let wrongAttempts = 0;
+let decodedCount = 0;
+let requiredDecodes = WAVE_1_REQUIRED;
+let perfectPhrase = true; // no wrong attempts on current phrase
+let showCipher = false;
+let staticOffset = 0; // for transmission static effect
+let newPhraseFlash = 0; // flash timer when new phrase appears
+
+// ---- Victory Cutscene ----
+let cutsceneTimer = 0;
+let cutsceneStars = [];
+let cutscenePhase = 0;
+
+// ---- Stars background ----
+const stars = [];
+for (let i = 0; i < 80; i++) {
+  stars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    size: Math.random() * 2 + 0.5,
+    speed: Math.random() * 0.5 + 0.2,
+    brightness: Math.random(),
+  });
+}
+
+// ==========================================
+//  ALIEN SYMBOL ALPHABET
+//  26 procedural symbols mapped to A-Z
+// ==========================================
+function drawAlienSymbol(ctx, letter, cx, cy, size) {
+  const idx = letter.charCodeAt(0) - 65; // 0-25
+  const r = size / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = Math.max(1.5, size / 12);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  switch (idx) {
+    case 0: // A — triangle with dot
+      ctx.beginPath();
+      ctx.moveTo(0, -r); ctx.lineTo(-r, r); ctx.lineTo(r, r); ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, r * 0.3, r * 0.15, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 1: // B — two stacked circles
+      ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, r * 0.35, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+      break;
+    case 2: // C — crescent moon
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.8, 0.3, Math.PI * 2 - 0.3); ctx.stroke();
+      ctx.beginPath(); ctx.arc(r * 0.3, 0, r * 0.6, Math.PI * 0.7, Math.PI * 1.3); ctx.stroke();
+      break;
+    case 3: // D — diamond with cross
+      ctx.beginPath();
+      ctx.moveTo(0, -r); ctx.lineTo(r, 0); ctx.lineTo(0, r); ctx.lineTo(-r, 0); ctx.closePath();
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * 0.4, 0); ctx.lineTo(r * 0.4, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -r * 0.4); ctx.lineTo(0, r * 0.4); ctx.stroke();
+      break;
+    case 4: // E — three horizontal lines
+      ctx.beginPath(); ctx.moveTo(-r, -r * 0.7); ctx.lineTo(r, -r * 0.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * 0.6, 0); ctx.lineTo(r * 0.6, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r, r * 0.7); ctx.lineTo(r, r * 0.7); ctx.stroke();
+      break;
+    case 5: // F — arrow pointing up
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(-r * 0.6, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(r * 0.6, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -r * 0.3); ctx.lineTo(0, r); ctx.stroke();
+      break;
+    case 6: // G — spiral
+      ctx.beginPath();
+      for (let t = 0; t < Math.PI * 3; t += 0.1) {
+        const sr = r * 0.15 + (t / (Math.PI * 3)) * r * 0.65;
+        const sx = Math.cos(t) * sr;
+        const sy = Math.sin(t) * sr;
+        t === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      break;
+    case 7: // H — two vertical lines with bridge
+      ctx.beginPath(); ctx.moveTo(-r * 0.5, -r); ctx.lineTo(-r * 0.5, r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r * 0.5, -r); ctx.lineTo(r * 0.5, r); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, 0);
+      ctx.quadraticCurveTo(0, -r * 0.5, r * 0.5, 0);
+      ctx.stroke();
+      break;
+    case 8: // I — single dot with circle
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.7, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.2, 0, Math.PI * 2); ctx.fill();
+      break;
+    case 9: // J — hook shape
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, -r);
+      ctx.lineTo(r * 0.3, r * 0.3);
+      ctx.quadraticCurveTo(r * 0.3, r, -r * 0.3, r);
+      ctx.quadraticCurveTo(-r * 0.7, r, -r * 0.7, r * 0.3);
+      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * 0.3, -r); ctx.lineTo(r * 0.8, -r); ctx.stroke();
+      break;
+    case 10: // K — X with top bar
+      ctx.beginPath(); ctx.moveTo(-r, -r); ctx.lineTo(r, r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r, -r); ctx.lineTo(-r, r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r, -r); ctx.lineTo(r, -r); ctx.stroke();
+      break;
+    case 11: // L — angle bracket
+      ctx.beginPath();
+      ctx.moveTo(r * 0.5, -r);
+      ctx.lineTo(-r * 0.5, 0);
+      ctx.lineTo(r * 0.5, r);
+      ctx.stroke();
+      break;
+    case 12: // M — zigzag (mountain)
+      ctx.beginPath();
+      ctx.moveTo(-r, r);
+      ctx.lineTo(-r * 0.5, -r);
+      ctx.lineTo(0, r * 0.2);
+      ctx.lineTo(r * 0.5, -r);
+      ctx.lineTo(r, r);
+      ctx.stroke();
+      break;
+    case 13: // N — wave
+      ctx.beginPath();
+      ctx.moveTo(-r, 0);
+      for (let t = -r; t <= r; t += 2) {
+        ctx.lineTo(t, Math.sin(((t + r) / (r * 2)) * Math.PI * 2) * r * 0.5);
+      }
+      ctx.stroke();
+      break;
+    case 14: // O — concentric circles
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.9, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.stroke();
+      break;
+    case 15: // P — flag shape
+      ctx.beginPath(); ctx.moveTo(-r * 0.4, r); ctx.lineTo(-r * 0.4, -r); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.4, -r);
+      ctx.lineTo(r * 0.6, -r * 0.5);
+      ctx.lineTo(-r * 0.4, 0);
+      ctx.stroke();
+      break;
+    case 16: // Q — circle with tail
+      ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(r * 0.3, r * 0.3); ctx.lineTo(r * 0.7, r); ctx.stroke();
+      break;
+    case 17: // R — lightning bolt
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.2, -r);
+      ctx.lineTo(r * 0.4, -r * 0.1);
+      ctx.lineTo(-r * 0.2, r * 0.1);
+      ctx.lineTo(r * 0.2, r);
+      ctx.stroke();
+      break;
+    case 18: // S — two arcs (yin-yang-ish)
+      ctx.beginPath(); ctx.arc(0, -r * 0.3, r * 0.5, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, r * 0.3, r * 0.5, 0, Math.PI); ctx.stroke();
+      break;
+    case 19: // T — cross/plus
+      ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(0, r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(r, 0); ctx.stroke();
+      break;
+    case 20: // U — cup/horseshoe
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.7, -r);
+      ctx.lineTo(-r * 0.7, r * 0.2);
+      ctx.quadraticCurveTo(-r * 0.7, r, 0, r);
+      ctx.quadraticCurveTo(r * 0.7, r, r * 0.7, r * 0.2);
+      ctx.lineTo(r * 0.7, -r);
+      ctx.stroke();
+      break;
+    case 21: // V — inverted triangle
+      ctx.beginPath();
+      ctx.moveTo(-r, -r); ctx.lineTo(0, r); ctx.lineTo(r, -r);
+      ctx.stroke();
+      break;
+    case 22: // W — double-V
+      ctx.beginPath();
+      ctx.moveTo(-r, -r);
+      ctx.lineTo(-r * 0.4, r);
+      ctx.lineTo(0, -r * 0.3);
+      ctx.lineTo(r * 0.4, r);
+      ctx.lineTo(r, -r);
+      ctx.stroke();
+      break;
+    case 23: // X — star burst (6 rays)
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI * 2 / 6) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        ctx.stroke();
+      }
+      break;
+    case 24: // Y — fork/trident
+      ctx.beginPath(); ctx.moveTo(0, r); ctx.lineTo(0, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-r * 0.7, -r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r * 0.7, -r); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r); ctx.stroke();
+      break;
+    case 25: // Z — two triangles stacked
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, -r * 0.1); ctx.lineTo(0, -r); ctx.lineTo(r * 0.5, -r * 0.1);
+      ctx.closePath(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, r * 0.1); ctx.lineTo(0, r); ctx.lineTo(r * 0.5, r * 0.1);
+      ctx.closePath(); ctx.stroke();
+      break;
+  }
+  ctx.restore();
+}
+
+// ==========================================
+//  PHRASE LISTS
+// ==========================================
+const wave1Words = [
+  'HOPE', 'STAR', 'HOME', 'SAFE', 'HELP', 'LAND', 'WARM', 'GLOW',
+  'LOVE', 'LIFE', 'REST', 'CALM', 'KIND', 'DAWN', 'WISH', 'FIND'
+];
+
+const wave2Phrases = [
+  'NEW HOME', 'SAFE ORBIT', 'FIND US', 'COME HERE',
+  'WE WAIT', 'LAND SOON', 'BE CALM', 'NOT ALONE',
+  'SKY GATE', 'SUN RISE', 'OUR HOPE', 'FLY NEAR'
+];
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ==========================================
+//  AUDIO
+// ==========================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playKeyPressSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1000, t);
+  gain.gain.setValueAtTime(0.03, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.05);
+}
+
+function playCorrectSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.08);
+    gain.gain.setValueAtTime(0.05, t + i * 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.08);
+    osc.stop(t + i * 0.08 + 0.25);
+  });
+}
+
+function playWrongSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.linearRampToValueAtTime(100, t + 0.2);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.25);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+function playLifeLostSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.35);
+}
+
+function playWaveCompleteSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.12);
+    gain.gain.setValueAtTime(0.06, t + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.12);
+    osc.stop(t + i * 0.12 + 0.35);
+  });
+}
+
+function playWinSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047, 1319, 1568];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.06, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.1);
+    osc.stop(t + i * 0.1 + 0.45);
+  });
+}
+
+function playGameOverSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 1.6);
+}
+
+function playTransmissionSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Short static burst + blip
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.15);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2500;
+  filter.Q.value = 3;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.04, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  src.connect(filter);
+  filter.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  src.start(t);
+  // Blip after static
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(900, t + 0.1);
+  osc.frequency.exponentialRampToValueAtTime(700, t + 0.2);
+  g.gain.setValueAtTime(0.04, t + 0.1);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+  osc.connect(g);
+  g.connect(audioCtx.destination);
+  osc.start(t + 0.1);
+  osc.stop(t + 0.25);
+}
+
+function playTimerWarningBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1200, t);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function playCipherToggleSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(showCipher ? 600 : 800, t);
+  osc.frequency.linearRampToValueAtTime(showCipher ? 800 : 600, t + 0.06);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function playRadioBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800 + Math.random() * 400, t);
+  osc.frequency.exponentialRampToValueAtTime(600 + Math.random() * 200, t + 0.15);
+  filter.type = 'bandpass';
+  filter.frequency.value = 1200;
+  filter.Q.value = 5;
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.18);
+}
+
+// ==========================================
+//  INPUT
+// ==========================================
+document.addEventListener('keydown', (e) => {
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      startGame();
+    }
+    return;
+  }
+
+  if (gameState !== 'playing') return;
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    showCipher = !showCipher;
+    playCipherToggleSound();
+    const cBtn = document.getElementById('cipherToggle');
+    if (cBtn) cBtn.classList.toggle('active', showCipher);
+    return;
+  }
+
+  if (e.key === 'Backspace') {
+    e.preventDefault();
+    if (currentInput.length > 0) {
+      currentInput = currentInput.slice(0, -1);
+      playKeyPressSound();
+    }
+    return;
+  }
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    submitAnswer();
+    return;
+  }
+
+  const upper = e.key.toUpperCase();
+  if (upper.length === 1 && upper >= 'A' && upper <= 'Z') {
+    e.preventDefault();
+    currentInput += upper;
+    playKeyPressSound();
+  }
+
+  if (e.key === ' ') {
+    e.preventDefault();
+    currentInput += ' ';
+    playKeyPressSound();
+  }
+});
+
+canvas.addEventListener('click', () => {
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') startGame();
+});
+
+// Virtual keyboard
+document.querySelectorAll('.kb-key[data-key]').forEach(btn => {
+  const handler = (e) => {
+    e.preventDefault();
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+      startGame();
+      return;
+    }
+    if (gameState !== 'playing') return;
+    currentInput += btn.dataset.key;
+    playKeyPressSound();
+    btn.classList.add('pressed');
+    setTimeout(() => btn.classList.remove('pressed'), 100);
+  };
+  btn.addEventListener('touchstart', handler, { passive: false });
+  btn.addEventListener('mousedown', handler);
+});
+
+document.getElementById('backspaceKey').addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  if (currentInput.length > 0) {
+    currentInput = currentInput.slice(0, -1);
+    playKeyPressSound();
+  }
+});
+document.getElementById('backspaceKey').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  if (currentInput.length > 0) {
+    currentInput = currentInput.slice(0, -1);
+    playKeyPressSound();
+  }
+}, { passive: false });
+
+document.getElementById('submitKey').addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    startGame();
+    return;
+  }
+  submitAnswer();
+});
+document.getElementById('submitKey').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    startGame();
+    return;
+  }
+  submitAnswer();
+}, { passive: false });
+
+document.getElementById('cipherToggle').addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  showCipher = !showCipher;
+  playCipherToggleSound();
+  e.currentTarget.classList.toggle('active', showCipher);
+});
+document.getElementById('cipherToggle').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  showCipher = !showCipher;
+  playCipherToggleSound();
+  e.currentTarget.classList.toggle('active', showCipher);
+}, { passive: false });
+
+// ==========================================
+//  ANSWER SUBMISSION
+// ==========================================
+function submitAnswer() {
+  if (gameState !== 'playing') return;
+  if (currentInput.length === 0) return;
+
+  const currentPhrase = phrases[currentPhraseIndex];
+  if (!currentPhrase) return;
+
+  if (currentInput === currentPhrase) {
+    // CORRECT!
+    const letterPoints = currentPhrase.replace(/ /g, '').length * 100;
+    const perfBonus = perfectPhrase ? 300 : 0;
+    score += letterPoints + perfBonus;
+    decodedCount++;
+    playCorrectSound();
+    flashKeyboard('correct');
+    advancePhrase();
+  } else {
+    // WRONG
+    wrongAttempts++;
+    playWrongSound();
+    shakeTimer = 10;
+    flashKeyboard('wrong');
+    currentInput = '';
+
+    if (wrongAttempts >= MAX_WRONG_PER_PHRASE) {
+      lives--;
+      playLifeLostSound();
+      updateHUD();
+      if (lives <= 0) {
+        gameState = 'gameover';
+        playGameOverSound();
+        saveHighScore();
+        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+        return;
+      }
+      // Skip to next phrase
+      advancePhrase();
+    }
+  }
+  updateHUD();
+}
+
+function advancePhrase() {
+  currentPhraseIndex++;
+  currentInput = '';
+  wrongAttempts = 0;
+  perfectPhrase = true;
+  newPhraseFlash = 30;
+
+  // Check if decoded enough
+  if (decodedCount >= requiredDecodes) {
+    // Wave complete!
+    if (wave >= MAX_WAVES) {
+      // WIN!
+      score += 1000;
+      localStorage.setItem('level-4-complete', 'true');
+      playWinSound();
+      saveHighScore();
+      updateHUD();
+      document.getElementById('gameMsg').textContent = '';
+      gameState = 'victoryCutscene';
+      initCutscene();
+    } else {
+      waveBonusAmount = 500;
+      score += waveBonusAmount;
+      gameState = 'waveTransition';
+      waveTransitionTimer = WAVE_TRANSITION_DURATION;
+      playWaveCompleteSound();
+      saveHighScore();
+      updateHUD();
+    }
+    return;
+  }
+
+  // If we've run out of phrases but haven't decoded enough, recycle
+  if (currentPhraseIndex >= phrases.length) {
+    if (wave === 1) {
+      phrases = shuffleArray(wave1Words);
+    } else {
+      phrases = shuffleArray(wave2Phrases);
+    }
+    currentPhraseIndex = 0;
+  }
+
+  playTransmissionSound();
+}
+
+function flashKeyboard(type) {
+  const cls = type === 'correct' ? 'correct-flash' : 'wrong-flash';
+  document.querySelectorAll('.kb-key[data-key]').forEach(k => {
+    k.classList.add(cls);
+    setTimeout(() => k.classList.remove(cls), 200);
+  });
+}
+
+// ==========================================
+//  INIT
+// ==========================================
+function startGame() {
+  ensureAudio();
+  score = 0;
+  lives = 3;
+  wave = 1;
+  currentPilot = 'jordan';
+  waveTimeRemaining = WAVE_1_TIME;
+  lastTimestamp = 0;
+  timerWarningPlayed = false;
+  decodedCount = 0;
+  requiredDecodes = WAVE_1_REQUIRED;
+  currentInput = '';
+  wrongAttempts = 0;
+  perfectPhrase = true;
+  showCipher = false;
+  newPhraseFlash = 30;
+  phrases = shuffleArray(wave1Words);
+  currentPhraseIndex = 0;
+  gameState = 'playing';
+  document.getElementById('gameMsg').textContent = '';
+  document.getElementById('keyboard').classList.add('active');
+  document.getElementById('cipherToggle').classList.remove('active');
+  playTransmissionSound();
+  updateHUD();
+}
+
+function nextWave() {
+  wave++;
+  currentPilot = 'chai';
+  waveTimeRemaining = WAVE_2_TIME;
+  timerWarningPlayed = false;
+  decodedCount = 0;
+  requiredDecodes = WAVE_2_REQUIRED;
+  currentInput = '';
+  wrongAttempts = 0;
+  perfectPhrase = true;
+  showCipher = false;
+  newPhraseFlash = 30;
+  phrases = shuffleArray(wave2Phrases);
+  currentPhraseIndex = 0;
+  document.getElementById('cipherToggle').classList.remove('active');
+  playTransmissionSound();
+  updateHUD();
+}
+
+// ==========================================
+//  HUD
+// ==========================================
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  document.getElementById('wave').textContent = pilotName + ' ' + wave + '/' + MAX_WAVES;
+  document.getElementById('highScoreDisplay').textContent = highScore;
+  document.getElementById('timeDisplay').textContent = Math.ceil(waveTimeRemaining);
+  document.getElementById('decodedDisplay').textContent = decodedCount + '/' + requiredDecodes;
+  let iconsHtml = '';
+  for (let i = 0; i < lives; i++) {
+    if (currentPilot === 'chai') {
+      iconsHtml += '<span class="life-icon" style="background:#222;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">&#128049;</span> ';
+    } else {
+      iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+    }
+  }
+  document.getElementById('livesIcons').innerHTML = iconsHtml;
+}
+
+// ==========================================
+//  UPDATE
+// ==========================================
+function updateTimer(dt) {
+  if (gameState !== 'playing') return;
+
+  waveTimeRemaining -= dt;
+
+  // Timer warning beeps
+  if (waveTimeRemaining <= 10 && waveTimeRemaining > 0) {
+    if (frame % 30 === 0) {
+      playTimerWarningBeep();
+    }
+    timerWarningPlayed = true;
+  }
+
+  // Time's up!
+  if (waveTimeRemaining <= 0) {
+    waveTimeRemaining = 0;
+    // Check if they decoded enough
+    if (decodedCount >= requiredDecodes) {
+      // Squeaked by! Wave complete
+      if (wave >= MAX_WAVES) {
+        score += 1000;
+        localStorage.setItem('level-4-complete', 'true');
+        playWinSound();
+        saveHighScore();
+        updateHUD();
+        document.getElementById('gameMsg').textContent = '';
+        gameState = 'victoryCutscene';
+        initCutscene();
+      } else {
+        waveBonusAmount = 500;
+        score += waveBonusAmount;
+        gameState = 'waveTransition';
+        waveTransitionTimer = WAVE_TRANSITION_DURATION;
+        playWaveCompleteSound();
+        saveHighScore();
+        updateHUD();
+      }
+    } else {
+      // Ran out of time — lose a life
+      lives--;
+      updateHUD();
+      if (lives <= 0) {
+        gameState = 'gameover';
+        playGameOverSound();
+        saveHighScore();
+        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+      } else {
+        // Restart the current wave with remaining lives
+        playLifeLostSound();
+        waveTimeRemaining = wave === 1 ? WAVE_1_TIME : WAVE_2_TIME;
+        timerWarningPlayed = false;
+        decodedCount = 0;
+        currentInput = '';
+        wrongAttempts = 0;
+        perfectPhrase = true;
+        if (wave === 1) {
+          phrases = shuffleArray(wave1Words);
+        } else {
+          phrases = shuffleArray(wave2Phrases);
+        }
+        currentPhraseIndex = 0;
+        newPhraseFlash = 30;
+        playTransmissionSound();
+      }
+    }
+  }
+
+  updateHUD();
+}
+
+function saveHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('decode-high', highScore);
+    updateHUD();
+  }
+}
+
+// ==========================================
+//  DRAW
+// ==========================================
+function drawStars() {
+  stars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    s.brightness += (Math.random() - 0.5) * 0.1;
+    s.brightness = Math.max(0.2, Math.min(1, s.brightness));
+    ctx.fillStyle = `rgba(255,255,255,${s.brightness * 0.5})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
+}
+
+function drawTimerBar() {
+  const maxTime = wave === 1 ? WAVE_1_TIME : WAVE_2_TIME;
+  const pct = Math.max(0, waveTimeRemaining / maxTime);
+  const barW = W - 20;
+  const barH = 4;
+  const x = 10;
+  const y = 4;
+
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x, y, barW, barH);
+
+  // Color: green → yellow → red
+  let r, g;
+  if (pct > 0.5) {
+    r = Math.floor((1 - pct) * 2 * 255);
+    g = 255;
+  } else {
+    r = 255;
+    g = Math.floor(pct * 2 * 255);
+  }
+  // Flash when low
+  const flash = (waveTimeRemaining <= 10 && Math.floor(frame / 8) % 2 === 0);
+  ctx.fillStyle = flash ? '#ff0000' : `rgb(${r},${g},0)`;
+  ctx.fillRect(x, y, barW * pct, barH);
+}
+
+function drawTransmission() {
+  const phrase = phrases[currentPhraseIndex];
+  if (!phrase) return;
+
+  // Transmission area background
+  ctx.fillStyle = 'rgba(0, 20, 0, 0.6)';
+  ctx.fillRect(10, 15, W - 20, 120);
+  ctx.strokeStyle = '#33ff33';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(10, 15, W - 20, 120);
+
+  // Static/scanline effect in transmission area
+  staticOffset = (staticOffset + 1) % 6;
+  for (let y = 15 + staticOffset; y < 135; y += 6) {
+    ctx.fillStyle = `rgba(51, 255, 51, ${Math.random() * 0.03})`;
+    ctx.fillRect(11, y, W - 22, 1);
+  }
+
+  // "INCOMING SIGNAL" label
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.textAlign = 'left';
+  ctx.fillText('▸ INCOMING SIGNAL', 18, 32);
+
+  // Draw the alien symbols
+  const symbolSize = wave === 1 ? 28 : 22;
+  const gap = wave === 1 ? 32 : 26;
+  const totalWidth = phrase.length * gap - (gap - symbolSize);
+  const startX = W / 2 - totalWidth / 2 + gap / 2;
+  const symY = 80;
+
+  ctx.strokeStyle = '#33ff33';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+
+  for (let i = 0; i < phrase.length; i++) {
+    const ch = phrase[i];
+    if (ch === ' ') continue; // space — just gap
+    const sx = startX + i * gap;
+
+    // New phrase flash effect
+    if (newPhraseFlash > 0) {
+      const flashAlpha = newPhraseFlash / 30;
+      ctx.save();
+      ctx.fillStyle = `rgba(51, 255, 51, ${flashAlpha * 0.3})`;
+      ctx.fillRect(sx - symbolSize / 2 - 2, symY - symbolSize / 2 - 2, symbolSize + 4, symbolSize + 4);
+      ctx.restore();
+      ctx.strokeStyle = '#33ff33';
+      ctx.fillStyle = '#33ff33';
+    }
+
+    drawAlienSymbol(ctx, ch, sx, symY, symbolSize);
+  }
+
+  ctx.shadowBlur = 0;
+
+  // Wrong attempts indicator
+  if (wrongAttempts > 0) {
+    ctx.font = '6px "Press Start 2P"';
+    ctx.fillStyle = '#ff3333';
+    ctx.textAlign = 'right';
+    ctx.fillText('ERRORS: ' + wrongAttempts + '/' + MAX_WRONG_PER_PHRASE, W - 18, 32);
+    ctx.textAlign = 'left';
+  }
+}
+
+function drawCurrentInput() {
+  const y = 170;
+
+  // Input area
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  ctx.fillRect(10, y - 20, W - 20, 40);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(10, y - 20, W - 20, 40);
+
+  // Label
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillStyle = '#888';
+  ctx.textAlign = 'left';
+  ctx.fillText('YOUR ANSWER:', 18, y - 8);
+
+  // The typed text
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 5;
+  const displayText = currentInput + (Math.floor(frame / 20) % 2 === 0 ? '_' : ' ');
+  ctx.fillText(displayText, W / 2, y + 10);
+  ctx.shadowBlur = 0;
+}
+
+function drawProgressDisplay() {
+  // Show decoded progress below input
+  const y = 225;
+  ctx.font = '7px "Press Start 2P"';
+  ctx.textAlign = 'center';
+
+  const phrase = phrases[currentPhraseIndex];
+  const phraseNum = currentPhraseIndex + 1;
+
+  ctx.fillStyle = '#33ff33';
+  ctx.fillText('DECODED: ' + decodedCount + ' / ' + requiredDecodes + ' REQUIRED', W / 2, y);
+
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillStyle = '#666';
+  ctx.fillText('PHRASE #' + phraseNum, W / 2, y + 16);
+}
+
+function drawCipherOverlay() {
+  if (!showCipher) return;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = '10px "Press Start 2P"';
+  ctx.fillStyle = '#66ddff';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#66ddff';
+  ctx.shadowBlur = 10;
+  ctx.fillText('CIPHER REFERENCE', W / 2, 30);
+  ctx.shadowBlur = 0;
+
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillStyle = '#555';
+  ctx.fillText('TAB OR 📡 TO CLOSE', W / 2, 46);
+
+  // Draw 26 symbols in a grid (5 columns, 6 rows, last row has 1)
+  const cols = 5;
+  const cellW = 90;
+  const cellH = 60;
+  const gridW = cols * cellW;
+  const startX = (W - gridW) / 2;
+  const startY = 58;
+
+  for (let i = 0; i < 26; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = startX + col * cellW + cellW / 2;
+    const cy = startY + row * cellH + 20;
+
+    // Cell border
+    ctx.strokeStyle = 'rgba(102, 221, 255, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(startX + col * cellW + 2, startY + row * cellH + 2, cellW - 4, cellH - 4);
+
+    // Draw the alien symbol
+    ctx.strokeStyle = '#33ff33';
+    ctx.fillStyle = '#33ff33';
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = 'round';
+    drawAlienSymbol(ctx, String.fromCharCode(65 + i), cx, cy, 22);
+
+    // Draw the letter below
+    ctx.font = '8px "Press Start 2P"';
+    ctx.fillStyle = '#66ddff';
+    ctx.textAlign = 'center';
+    ctx.fillText(String.fromCharCode(65 + i), cx, cy + 22);
+  }
+
+  ctx.restore();
+}
+
+// ---- Overlays ----
+function drawWaitingOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#66ddff';
+  ctx.shadowColor = '#66ddff';
+  ctx.shadowBlur = 15;
+  ctx.fillText('ALIEN SIGNAL', W / 2, H / 2 - 100);
+  ctx.fillText('DETECTED', W / 2, H / 2 - 80);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('JORDAN GRABS THE DECODER', W / 2, H / 2 - 45);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText('DECODE THE TRANSMISSIONS', W / 2, H / 2 - 10);
+  ctx.fillText('TO SURVIVE', W / 2, H / 2 + 8);
+
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillStyle = '#888';
+  ctx.shadowBlur = 0;
+  ctx.fillText('TYPE LETTERS · TAB FOR CIPHER', W / 2, H / 2 + 40);
+  ctx.fillText('ENTER TO SUBMIT ANSWER', W / 2, H / 2 + 56);
+
+  const pulse = 0.5 + Math.sin(frame * 0.08) * 0.5;
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = `rgba(255, 255, 0, ${pulse})`;
+  ctx.fillText('PRESS ENTER TO START', W / 2, H / 2 + 90);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWaveTransitionOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 15;
+  ctx.fillText('GREAT JOB!', W / 2, H / 2 - 90);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('WAVE 1 DECODED!', W / 2, H / 2 - 55);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 - 30);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#aaa';
+  ctx.shadowBlur = 0;
+  ctx.fillText("JORDAN'S EYES ARE GETTING", W / 2, H / 2 + 5);
+  ctx.fillText('BLURRY FROM ALL THOSE SYMBOLS.', W / 2, H / 2 + 22);
+
+  const pulse = 0.7 + Math.sin(frame * 0.12) * 0.3;
+  ctx.font = '10px "Press Start 2P"';
+  ctx.fillStyle = `rgba(180, 100, 255, ${pulse})`;
+  ctx.shadowColor = `rgba(180, 100, 255, ${pulse})`;
+  ctx.shadowBlur = 12;
+  ctx.fillText('CHAI! TAKE THE WHEEL!', W / 2, H / 2 + 65);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawGameOverOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillStyle = '#ff0000';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20;
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 60);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#aaa';
+  ctx.shadowBlur = 0;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  ctx.fillText(pilotName + ' COULDN\'T DECODE IN TIME', W / 2, H / 2 - 25);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('DECODED: ' + decodedCount + ' PHRASES', W / 2, H / 2 + 5);
+
+  ctx.fillStyle = '#ff0';
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 30);
+
+  if (score >= highScore && score > 0) {
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#ff66cc';
+    ctx.fillText('★ NEW HIGH SCORE! ★', W / 2, H / 2 + 55);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWinOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 20;
+  ctx.fillText('MESSAGE DECODED!', W / 2, H / 2 - 60);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 10;
+  ctx.fillText('JORDAN AND CHAI UNDERSTAND', W / 2, H / 2 - 25);
+  ctx.fillText('THE SIGNAL', W / 2, H / 2 - 8);
+
+  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 0;
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 25);
+
+  if (score >= highScore && score > 0) {
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#ff66cc';
+    ctx.fillText('★ NEW HIGH SCORE! ★', W / 2, H / 2 + 50);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+// ==========================================
+//  VICTORY CUTSCENE
+// ==========================================
+function initCutscene() {
+  cutsceneTimer = 0;
+  cutscenePhase = 0;
+  cutsceneStars = [];
+  for (let i = 0; i < 80; i++) {
+    cutsceneStars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: Math.random() * 2 + 0.5,
+      speed: Math.random() * 1.5 + 0.5,
+    });
+  }
+}
+
+function updateCutscene() {
+  cutsceneTimer++;
+
+  if (cutsceneTimer < 180) cutscenePhase = 0;
+  else if (cutsceneTimer < 360) cutscenePhase = 1;
+  else cutscenePhase = 2;
+
+  // Phase 2: Radio beeps
+  if (cutscenePhase === 2) {
+    const t = cutsceneTimer - 360;
+    if (t === 30 || t === 50 || t === 70) playRadioBeep();
+  }
+
+  if (cutsceneTimer >= 540) {
+    window.location.href = 'index.html';
+  }
+}
+
+function drawCutscene() {
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  cutsceneStars.forEach(s => {
+    s.y += s.speed * 0.3;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.4})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
+
+  // Pod
+  const podX = W / 2;
+  const podY = H / 2 - 20;
+
+  // Pod body
+  ctx.save();
+  ctx.translate(podX, podY);
+
+  // Engine glow
+  ctx.fillStyle = 'rgba(51, 255, 51, 0.1)';
+  ctx.beginPath();
+  ctx.ellipse(0, 15, 20, 8 + Math.random() * 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#667';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 38, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#99a';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Window
+  ctx.fillStyle = '#224';
+  ctx.beginPath();
+  ctx.arc(-5, -3, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#88a';
+  ctx.stroke();
+
+  // Face in window
+  if (faceImg.complete) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(-5, -3, 10, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(faceImg, -15, -13, 20, 20);
+    ctx.restore();
+  }
+
+  // Chai on top
+  ctx.fillStyle = '#ddb';
+  ctx.beginPath();
+  ctx.arc(12, -20, 7, 0, Math.PI * 2);
+  ctx.fill();
+  // Ears
+  ctx.beginPath(); ctx.moveTo(7, -26); ctx.lineTo(9, -30); ctx.lineTo(12, -26); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(12, -26); ctx.lineTo(15, -30); ctx.lineTo(17, -26); ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#333';
+  ctx.beginPath(); ctx.arc(10, -21, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f33';
+  ctx.beginPath(); ctx.arc(14, -21, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+
+  // Text based on phase
+  ctx.textAlign = 'center';
+
+  if (cutscenePhase === 0) {
+    ctx.font = '11px "Press Start 2P"';
+    ctx.fillStyle = '#ff0';
+    ctx.shadowColor = '#ff0';
+    ctx.shadowBlur = 12;
+    ctx.fillText('MESSAGE DECODED!', W / 2, 60);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#33ff33';
+    ctx.fillText('THE SIGNAL WAS A GREETING...', W / 2, 90);
+  } else if (cutscenePhase === 1) {
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillStyle = '#66ddff';
+    ctx.shadowColor = '#66ddff';
+    ctx.shadowBlur = 10;
+    ctx.fillText('"WE ARE NOT ALONE"', W / 2, 60);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('SOMEONE OUT THERE IS FRIENDLY', W / 2, 90);
+    ctx.fillText('AND THEY KNOW THE WAY HOME', W / 2, 106);
+  } else {
+    const t = cutsceneTimer - 360;
+    const alpha = Math.min(1, t / 30);
+
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = `rgba(255, 170, 0, ${alpha})`;
+    ctx.shadowColor = '#ffa500';
+    ctx.shadowBlur = 12 * alpha;
+    ctx.fillText('COORDINATES RECEIVED', W / 2, 55);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = `rgba(51, 255, 51, ${alpha})`;
+    ctx.fillText('SETTING COURSE FOR NEW PLANET...', W / 2, 82);
+
+    // Animated waveform
+    if (t > 15) {
+      ctx.strokeStyle = `rgba(102, 221, 255, ${alpha * 0.6})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = W / 2 - 80; x <= W / 2 + 80; x += 2) {
+        const nx = (x - W / 2) / 80;
+        const wave1 = Math.sin(nx * 8 + cutsceneTimer * 0.15) * 6;
+        const wave2 = Math.sin(nx * 12 + cutsceneTimer * 0.1) * 3;
+        const envelope = 1 - nx * nx;
+        const wy = H - 60 + (wave1 + wave2) * envelope;
+        x === W / 2 - 80 ? ctx.moveTo(x, wy) : ctx.lineTo(x, wy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  ctx.textAlign = 'left';
+  ctx.shadowBlur = 0;
+}
+
+// ==========================================
+//  MAIN GAME LOOP
+// ==========================================
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+  frame++;
+
+  // Victory cutscene takes over
+  if (gameState === 'victoryCutscene') {
+    updateCutscene();
+    drawCutscene();
+    return;
+  }
+
+  // Delta time for timer
+  if (lastTimestamp === 0) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+  lastTimestamp = timestamp;
+
+  // Update
+  if (gameState === 'playing') {
+    updateTimer(dt);
+    if (newPhraseFlash > 0) newPhraseFlash--;
+  }
+
+  if (gameState === 'waveTransition') {
+    waveTransitionTimer--;
+    if (waveTransitionTimer <= 0) {
+      nextWave();
+      gameState = 'playing';
+    }
+  }
+
+  // Draw
+  const shake = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  const shakeY = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  if (shakeTimer > 0) shakeTimer--;
+
+  ctx.save();
+  ctx.translate(shake, shakeY);
+
+  // Background
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, W, H);
+  drawStars();
+
+  if (gameState === 'playing') {
+    drawTimerBar();
+    drawTransmission();
+    drawCurrentInput();
+    drawProgressDisplay();
+    drawCipherOverlay();
+  }
+
+  if (gameState === 'waiting') drawWaitingOverlay();
+  if (gameState === 'waveTransition') drawWaveTransitionOverlay();
+  if (gameState === 'gameover') drawGameOverOverlay();
+  if (gameState === 'win') drawWinOverlay();
+
+  ctx.restore();
+}
+
+// ==========================================
+//  INIT
+// ==========================================
+updateHUD();
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>

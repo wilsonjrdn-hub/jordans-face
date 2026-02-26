@@ -280,12 +280,12 @@
         </div>
         <span class="status">BEAT LEVEL 2 TO UNLOCK</span>
       </li>
-      <li class="menu-item level-pink locked">
+      <li class="menu-item level-pink locked" id="level4">
         <div class="game-info">
           <span class="game-name">LEVEL 4: A GLIMMER OF HOPE</span>
           <span class="game-desc">Decode a mysterious alien transmission before time runs out.</span>
         </div>
-        <span class="status">COMING SOON</span>
+        <span class="status">BEAT LEVEL 3 TO UNLOCK</span>
       </li>
       <li class="menu-item level-purple locked">
         <div class="game-info">
@@ -882,6 +882,14 @@
         if (el) {
           el.classList.remove('locked');
           el.setAttribute('onclick', "window.location='meteors.html'");
+          el.querySelector('.status').textContent = 'PLAY NOW!';
+        }
+      }
+      if (localStorage.getItem('level-3-complete')) {
+        const el = document.getElementById('level4');
+        if (el) {
+          el.classList.remove('locked');
+          el.setAttribute('onclick', "window.location='decode.html'");
           el.querySelector('.status').textContent = 'PLAY NOW!';
         }
       }
