@@ -333,6 +333,12 @@ let goalPos = { x: 19, y: 1 };
 let podRevealed = false;
 let podRevealFlash = 0; // countdown for reveal flash effect
 
+// Escape cutscene
+let escapeCutsceneTimer = 0;
+let escapeStars = [];
+let escapePlanetExploded = false;
+let escapeCutsceneParticles = [];
+
 // Player
 let player = {
   x: 1, y: 19,
@@ -432,6 +438,31 @@ function playWinSound() {
     osc.start(t + i * 0.1);
     osc.stop(t + i * 0.1 + 0.45);
   });
+}
+
+function playExplosionSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Deep noise burst
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.8);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 1.5);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(400, t);
+  filter.frequency.exponentialRampToValueAtTime(80, t + 0.8);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.2, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  src.start(t);
 }
 
 function playGameOverSound() {
@@ -882,17 +913,21 @@ function checkGoalReached() {
       cutscenePhase = 0;
       updateHUD();
     } else {
-      // Win!
+      // Win — launch escape cutscene!
       score += Math.ceil(timer) * 10;
       if (score > highScore) {
         highScore = score;
         localStorage.setItem('escape-jergusia-high', highScore);
       }
-      gameState = 'win';
       localStorage.setItem('level-1-complete', 'true');
+      gameState = 'escapeCutscene';
+      escapeCutsceneTimer = 0;
+      escapePlanetExploded = false;
+      escapeCutsceneParticles = [];
+      initEscapeStars();
       playWinSound();
       updateHUD();
-      document.getElementById('gameMsg').innerHTML = 'ESCAPED JERGUSIA-7!<br>SCORE: ' + score + '<br>PRESS ENTER TO PLAY AGAIN';
+      document.getElementById('gameMsg').textContent = '';
     }
   }
 }
@@ -943,6 +978,271 @@ function drawCutscene() {
   }
 
   ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+}
+
+// ==========================================
+//  ESCAPE CUTSCENE (after Level 1 win)
+// ==========================================
+function initEscapeStars() {
+  escapeStars = [];
+  for (let i = 0; i < 60; i++) {
+    escapeStars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      speed: 0.5 + Math.random() * 2.5,
+      size: Math.random() < 0.3 ? 2 : 1,
+      brightness: 0.3 + Math.random() * 0.7
+    });
+  }
+}
+
+function updateEscapeCutscene() {
+  escapeCutsceneTimer++;
+
+  // Update stars (scroll left)
+  for (const s of escapeStars) {
+    s.x -= s.speed;
+    if (s.x < 0) {
+      s.x = canvas.width;
+      s.y = Math.random() * canvas.height;
+    }
+  }
+
+  // Planet explosion at ~2.5 seconds (150 frames)
+  if (!escapePlanetExploded && escapeCutsceneTimer >= 150) {
+    escapePlanetExploded = true;
+    playExplosionSound();
+    shakeTimer = 30;
+    // Spawn explosion particles
+    const px = 380, py = 252;
+    const colors = ['#ff4444', '#ff8800', '#ffcc00', '#ff6622', '#ffaa44', '#ffffff'];
+    for (let i = 0; i < 40; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 4;
+      escapeCutsceneParticles.push({
+        x: px + (Math.random() - 0.5) * 30,
+        y: py + (Math.random() - 0.5) * 30,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 80 + Math.random() * 60,
+        maxLife: 140,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 2 + Math.random() * 4
+      });
+    }
+  }
+
+  // Update cutscene particles
+  for (let i = escapeCutsceneParticles.length - 1; i >= 0; i--) {
+    const p = escapeCutsceneParticles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.life--;
+    if (p.life <= 0) escapeCutsceneParticles.splice(i, 1);
+  }
+
+  // Auto-redirect at ~7 seconds (420 frames)
+  if (escapeCutsceneTimer >= 420) {
+    window.location.href = 'index.html';
+  }
+}
+
+function drawEscapeCutscene() {
+  const W = canvas.width, H = canvas.height;
+  const t = escapeCutsceneTimer;
+
+  // Black background
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  // Scrolling stars
+  for (const s of escapeStars) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${s.brightness})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  }
+
+  // Planet Jergusia-7 (receding on right side)
+  if (!escapePlanetExploded) {
+    const shrink = t * 0.15;
+    const planetR = Math.max(80 - shrink, 10);
+    const planetX = 380 + t * 0.3;
+    const planetY = 252;
+
+    // Planet body
+    ctx.beginPath();
+    ctx.arc(planetX, planetY, planetR, 0, Math.PI * 2);
+    ctx.fillStyle = '#553366';
+    ctx.fill();
+
+    // Surface cracks (get worse over time)
+    ctx.strokeStyle = '#884444';
+    ctx.lineWidth = 1 + t * 0.005;
+    ctx.beginPath();
+    ctx.moveTo(planetX - planetR * 0.3, planetY - planetR * 0.4);
+    ctx.lineTo(planetX + planetR * 0.2, planetY + planetR * 0.1);
+    ctx.lineTo(planetX + planetR * 0.5, planetY + planetR * 0.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(planetX + planetR * 0.1, planetY - planetR * 0.6);
+    ctx.lineTo(planetX - planetR * 0.1, planetY);
+    ctx.lineTo(planetX - planetR * 0.4, planetY + planetR * 0.3);
+    ctx.stroke();
+
+    // Glowing cracks (intensify near explosion)
+    if (t > 100) {
+      const glow = (t - 100) / 50;
+      ctx.shadowColor = '#ff4444';
+      ctx.shadowBlur = glow * 15;
+      ctx.strokeStyle = `rgba(255, 68, 68, ${Math.min(glow, 1)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(planetX - planetR * 0.3, planetY - planetR * 0.4);
+      ctx.lineTo(planetX + planetR * 0.2, planetY + planetR * 0.1);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // Explosion flash
+  if (t >= 150 && t < 165) {
+    const flashAlpha = 1 - (t - 150) / 15;
+    ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Explosion particles
+  for (const p of escapeCutsceneParticles) {
+    const alpha = p.life / p.maxLife;
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+
+  // Escape pod (center-left, with engine flame)
+  const podX = 150, podY = 245;
+
+  // Engine flame (flickering)
+  const flameLen = 15 + Math.random() * 10;
+  ctx.fillStyle = '#ff8800';
+  ctx.fillRect(podX - 38 - flameLen, podY + 5, flameLen, 6);
+  ctx.fillStyle = '#ffcc00';
+  ctx.fillRect(podX - 38 - flameLen * 0.6, podY + 6, flameLen * 0.6, 4);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(podX - 38 - flameLen * 0.2, podY + 7, flameLen * 0.2, 2);
+
+  // Pod body
+  ctx.beginPath();
+  ctx.ellipse(podX, podY + 10, 35, 18, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#667788';
+  ctx.fill();
+  ctx.strokeStyle = '#8899aa';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Pod window
+  ctx.beginPath();
+  ctx.arc(podX + 8, podY + 6, 12, 0, Math.PI * 2);
+  ctx.fillStyle = '#aaddff';
+  ctx.fill();
+  ctx.strokeStyle = '#88aacc';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Jordan's face in window (tiny)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(podX + 8, podY + 6, 10, 0, Math.PI * 2);
+  ctx.clip();
+  if (faceImg.complete && faceImg.naturalWidth > 0) {
+    ctx.drawImage(faceImg, podX - 2, podY - 4, 20, 20);
+  } else {
+    ctx.fillStyle = '#ffcc99';
+    ctx.fillRect(podX - 2, podY - 4, 20, 20);
+  }
+  ctx.restore();
+
+  // Chai on top of pod (tiny)
+  const cx = podX - 12, cy = podY - 8;
+  // Chai head
+  ctx.beginPath();
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.fillStyle = '#ddc89e';
+  ctx.fill();
+  // Ears
+  ctx.fillStyle = '#ddc89e';
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 4);
+  ctx.lineTo(cx - 7, cy - 10);
+  ctx.lineTo(cx - 1, cy - 6);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx + 5, cy - 4);
+  ctx.lineTo(cx + 7, cy - 10);
+  ctx.lineTo(cx + 1, cy - 6);
+  ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#4488cc';
+  ctx.fillRect(cx - 3, cy - 2, 2, 2);
+  ctx.fillStyle = '#ff3333';
+  ctx.fillRect(cx + 1, cy - 2, 2, 2);
+
+  // Pod antenna
+  ctx.strokeStyle = '#aabbcc';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(podX + 20, podY - 2);
+  ctx.lineTo(podX + 28, podY - 14);
+  ctx.stroke();
+  // Blinking light
+  ctx.beginPath();
+  ctx.arc(podX + 28, podY - 14, 2, 0, Math.PI * 2);
+  ctx.fillStyle = frame % 30 < 15 ? '#ff0000' : '#440000';
+  ctx.fill();
+
+  // Pod label
+  ctx.font = '4px "Press Start 2P"';
+  ctx.fillStyle = '#aabbcc';
+  ctx.textAlign = 'center';
+  ctx.fillText('JERGUSIA-7', podX, podY + 22);
+
+  // Text overlays
+  if (t >= 240) {
+    const alpha = Math.min((t - 240) / 30, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '11px "Press Start 2P"';
+    ctx.fillStyle = '#33ff33';
+    ctx.shadowColor = '#33ff33';
+    ctx.shadowBlur = 15;
+    ctx.fillText('ESCAPED JERGUSIA-7!', W / 2, H / 2 - 80);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  if (t >= 300) {
+    const alpha = Math.min((t - 300) / 30, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '9px "Press Start 2P"';
+    ctx.fillStyle = '#ffcc00';
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur = 10;
+    ctx.fillText('LEVEL 1 COMPLETE', W / 2, H / 2 - 55);
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+  }
+
+  if (t >= 350) {
+    const alpha = Math.min((t - 350) / 30, 1);
+    ctx.globalAlpha = alpha;
+    ctx.font = '6px "Press Start 2P"';
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText('SCORE: ' + score, W / 2, H / 2 - 30);
+    ctx.globalAlpha = 1;
+  }
+
   ctx.textAlign = 'left';
 }
 
@@ -1547,6 +1847,15 @@ function gameLoop(timestamp) {
     shakeTimer--;
     const intensity = shakeTimer * 0.5;
     ctx.translate((Math.random() - 0.5) * intensity, (Math.random() - 0.5) * intensity);
+  }
+
+  // Escape cutscene takes over all rendering
+  if (gameState === 'escapeCutscene') {
+    updateEscapeCutscene();
+    drawEscapeCutscene();
+    ctx.restore();
+    requestAnimationFrame(gameLoop);
+    return;
   }
 
   // Clear
