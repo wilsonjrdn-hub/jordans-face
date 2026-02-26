@@ -246,14 +246,24 @@ let timerWarningPlayed = false;
 // ---- Scoring ----
 let scoreAccumulator = 0; // accumulates fractional score per frame
 
-// ---- Shield Power-up ----
+// ---- Power-ups ----
 let powerups = [];
-let shieldActive = false;
-let shieldTimer = 0;
-const SHIELD_DURATION = 300; // 5 seconds at 60fps
 const POWERUP_SPAWN_CHANCE = 0.003; // chance per frame during play
 const POWERUP_MIN_INTERVAL = 600; // minimum frames between spawns (~10 sec)
 let lastPowerupSpawnFrame = -999;
+
+// Shield power-up
+let shieldActive = false;
+let shieldTimer = 0;
+const SHIELD_DURATION = 600; // 10 seconds at 60fps
+
+// Shooting power-up
+let shootingActive = false;
+let shootingTimer = 0;
+const SHOOTING_DURATION = 600; // 10 seconds at 60fps
+const SHOOT_INTERVAL = 8; // fire every 8 frames (~7.5 shots/sec)
+let shootCooldown = 0;
+let bullets = [];
 
 // ---- Victory Cutscene ----
 let cutsceneTimer = 0;
@@ -502,6 +512,79 @@ function playShieldDownSound() {
   osc.stop(t + 0.4);
 }
 
+function playShootPickupSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Power-up jingle — quick ascending military feel
+  const notes = [392, 523, 659, 784]; // G4, C5, E5, G5
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.05);
+    gain.gain.setValueAtTime(0.06, t + i * 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.05 + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.05);
+    osc.stop(t + i * 0.05 + 0.2);
+  });
+}
+
+function playShootSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Quick laser pew
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(1200, t);
+  osc.frequency.exponentialRampToValueAtTime(200, t + 0.08);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function playMeteorDestroySound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Crunchy explosion
+  const bufferSize = Math.floor(audioCtx.sampleRate * 0.15);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const noiseGain = audioCtx.createGain();
+  noiseGain.gain.setValueAtTime(0.08, t);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  src.connect(noiseGain);
+  noiseGain.connect(audioCtx.destination);
+  src.start(t);
+}
+
+function playShootDownSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  // Same descending tone as shield down
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(150, t + 0.3);
+  gain.gain.setValueAtTime(0.05, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.4);
+}
+
 // ---- Player (ship) ----
 const player = {
   x: W / 2,
@@ -672,8 +755,12 @@ function startGame() {
   meteors = [];
   particles = [];
   powerups = [];
+  bullets = [];
   shieldActive = false;
   shieldTimer = 0;
+  shootingActive = false;
+  shootingTimer = 0;
+  shootCooldown = 0;
   lastPowerupSpawnFrame = -999;
   waveTimeRemaining = WAVE_DURATION;
   lastTimestamp = 0;
@@ -690,8 +777,12 @@ function nextWave() {
   meteors = [];
   particles = [];
   powerups = [];
+  bullets = [];
   shieldActive = false;
   shieldTimer = 0;
+  shootingActive = false;
+  shootingTimer = 0;
+  shootCooldown = 0;
   lastPowerupSpawnFrame = frame; // Small delay before spawning in wave 2
   player.x = W / 2;
   player.y = H - 60;
@@ -918,22 +1009,33 @@ function updateParticles() {
 }
 
 // ---- Shield Power-ups ----
-function createPowerup() {
+function createPowerup(type) {
   return {
     x: 30 + Math.random() * (W - 60),
     y: -20,
     radius: 12,
     speed: 1.2 + Math.random() * 0.8,
-    angle: 0, // for spinning animation
+    angle: 0,
     sparkleTimer: 0,
+    type: type, // 'shield' or 'shooting'
   };
 }
 
 function updatePowerups() {
-  // Spawn new power-up occasionally
-  if (!shieldActive && frame - lastPowerupSpawnFrame > POWERUP_MIN_INTERVAL) {
+  // Spawn new power-up occasionally (not if both are already active)
+  const bothActive = shieldActive && shootingActive;
+  if (!bothActive && frame - lastPowerupSpawnFrame > POWERUP_MIN_INTERVAL) {
     if (Math.random() < POWERUP_SPAWN_CHANCE) {
-      powerups.push(createPowerup());
+      // Pick a random type, biased toward whichever isn't active
+      let type;
+      if (shieldActive) {
+        type = 'shooting';
+      } else if (shootingActive) {
+        type = 'shield';
+      } else {
+        type = Math.random() < 0.5 ? 'shield' : 'shooting';
+      }
+      powerups.push(createPowerup(type));
       lastPowerupSpawnFrame = frame;
     }
   }
@@ -957,10 +1059,23 @@ function updatePowerups() {
     if (dist < player.w / 2 + p.radius) {
       // Picked up!
       powerups.splice(i, 1);
-      shieldActive = true;
-      shieldTimer = SHIELD_DURATION;
-      playShieldPickupSound();
+
+      const isShield = p.type === 'shield';
+      if (isShield) {
+        shieldActive = true;
+        shieldTimer = SHIELD_DURATION;
+        playShieldPickupSound();
+      } else {
+        shootingActive = true;
+        shootingTimer = SHOOTING_DURATION;
+        shootCooldown = 0;
+        playShootPickupSound();
+      }
+
       // Spawn sparkle particles at pickup location
+      const sparkColor = isShield
+        ? ['#00ffff', '#66ffff', '#ffffff', '#00ccff']
+        : ['#ff6600', '#ffaa00', '#ffff00', '#ff4400'];
       for (let j = 0; j < 8; j++) {
         const a = (Math.PI * 2 / 8) * j;
         particles.push({
@@ -969,7 +1084,7 @@ function updatePowerups() {
           vy: Math.sin(a) * 2,
           life: 25,
           maxLife: 25,
-          color: ['#00ffff', '#66ffff', '#ffffff', '#00ccff'][j % 4],
+          color: sparkColor[j % 4],
           size: 2 + Math.random() * 2,
         });
       }
@@ -988,19 +1103,107 @@ function updateShield() {
   }
 }
 
+function updateShooting() {
+  if (shootingActive) {
+    shootingTimer--;
+    shootCooldown--;
+
+    // Auto-fire bullets upward
+    if (shootCooldown <= 0) {
+      shootCooldown = SHOOT_INTERVAL;
+      const bulletColor = currentPilot === 'jordan' ? '#33ff33' : '#cc66ff';
+      // Two bullets — one from each side of the ship
+      bullets.push({
+        x: player.x - 8,
+        y: player.y - player.h / 2,
+        vy: -7,
+        color: bulletColor,
+        size: 3,
+      });
+      bullets.push({
+        x: player.x + 8,
+        y: player.y - player.h / 2,
+        vy: -7,
+        color: bulletColor,
+        size: 3,
+      });
+      playShootSound();
+    }
+
+    if (shootingTimer <= 0) {
+      shootingActive = false;
+      shootingTimer = 0;
+      playShootDownSound();
+    }
+  }
+}
+
+function updateBullets() {
+  // Move bullets
+  bullets.forEach(b => {
+    b.y += b.vy;
+  });
+
+  // Remove off-screen
+  bullets = bullets.filter(b => b.y > -10);
+
+  // Check bullet-meteor collisions
+  for (let bi = bullets.length - 1; bi >= 0; bi--) {
+    const b = bullets[bi];
+    for (let mi = meteors.length - 1; mi >= 0; mi--) {
+      const m = meteors[mi];
+      const dx = b.x - m.x;
+      const dy = b.y - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < m.radius + b.size) {
+        // Bullet hit meteor!
+        score += 25;
+        bullets.splice(bi, 1);
+        playMeteorDestroySound();
+
+        // Spawn fiery explosion at meteor position
+        const expColors = ['#ff6600', '#ffaa00', '#ff4400', '#ffff00', '#ff0000'];
+        for (let j = 0; j < 8; j++) {
+          const a = (Math.PI * 2 / 8) * j + Math.random() * 0.4;
+          const spd = 1 + Math.random() * 2.5;
+          particles.push({
+            x: m.x, y: m.y,
+            vx: Math.cos(a) * spd,
+            vy: Math.sin(a) * spd,
+            life: 20 + Math.random() * 15,
+            maxLife: 35,
+            color: expColors[j % 5],
+            size: 2 + Math.random() * 3,
+          });
+        }
+
+        meteors.splice(mi, 1);
+        updateHUD();
+        break; // bullet is gone, move to next bullet
+      }
+    }
+  }
+}
+
 function drawPowerups() {
   powerups.forEach(p => {
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle);
 
-    // Outer glow
     const pulse = 0.6 + Math.sin(p.sparkleTimer * 0.1) * 0.4;
-    ctx.shadowColor = '#00ffff';
+    const isShield = p.type === 'shield';
+    const glowColor = isShield ? '#00ffff' : '#ff6600';
+    const fillR = isShield ? 0 : 255;
+    const fillG = isShield ? 255 : 102;
+    const fillB = isShield ? 255 : 0;
+
+    // Outer glow
+    ctx.shadowColor = glowColor;
     ctx.shadowBlur = 12 + pulse * 6;
 
-    // Shield icon — hexagonal shape
-    ctx.fillStyle = `rgba(0, 255, 255, ${0.6 + pulse * 0.3})`;
+    // Hexagonal shape
+    ctx.fillStyle = `rgba(${fillR}, ${fillG}, ${fillB}, ${0.6 + pulse * 0.3})`;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1014,13 +1217,13 @@ function drawPowerups() {
     ctx.fill();
     ctx.stroke();
 
-    // Inner "S" for shield
+    // Inner letter — S for shield, W for weapon
     ctx.shadowBlur = 0;
     ctx.font = 'bold 11px "Press Start 2P"';
-    ctx.fillStyle = '#003333';
+    ctx.fillStyle = isShield ? '#003333' : '#331100';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('S', 0, 1);
+    ctx.fillText(isShield ? 'S' : 'W', 0, 1);
 
     ctx.restore();
 
@@ -1033,10 +1236,31 @@ function drawPowerups() {
         vy: -0.5 - Math.random() * 0.5,
         life: 15 + Math.random() * 10,
         maxLife: 25,
-        color: '#00ffff',
+        color: glowColor,
         size: 1 + Math.random() * 2,
       });
     }
+  });
+}
+
+function drawBullets() {
+  bullets.forEach(b => {
+    ctx.save();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 8;
+
+    // Bullet trail
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x - 1, b.y, 2, 10);
+
+    // Bullet head (bright dot)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.size - 1, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
   });
 }
 
@@ -1047,8 +1271,8 @@ function drawShield() {
   const cy = player.y;
   const shieldRadius = player.w / 2 + 14;
 
-  // Flicker warning when about to expire (last 1.5 sec / 90 frames)
-  if (shieldTimer < 90 && Math.floor(frame / 6) % 2 === 0) return;
+  // Flicker warning when about to expire (last 2 sec / 120 frames)
+  if (shieldTimer < 120 && Math.floor(frame / 6) % 2 === 0) return;
 
   ctx.save();
 
@@ -1078,6 +1302,36 @@ function drawShield() {
     ctx.arc(cx, cy, shieldRadius + 3, startAngle, startAngle + 0.5);
     ctx.stroke();
   }
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function drawShootingIndicator() {
+  if (!shootingActive) return;
+
+  // Flicker warning when about to expire (last 2 sec / 120 frames)
+  if (shootingTimer < 120 && Math.floor(frame / 6) % 2 === 0) return;
+
+  // Small glowing bars on each side of the ship — shows weapon is active
+  const cx = player.x;
+  const cy = player.y;
+  const gunColor = currentPilot === 'jordan' ? '#33ff33' : '#cc66ff';
+
+  ctx.save();
+  ctx.shadowColor = gunColor;
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = gunColor;
+
+  // Left gun muzzle glow
+  ctx.beginPath();
+  ctx.arc(cx - 8, cy - player.h / 2 - 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Right gun muzzle glow
+  ctx.beginPath();
+  ctx.arc(cx + 8, cy - player.h / 2 - 2, 2, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.shadowBlur = 0;
   ctx.restore();
@@ -1855,6 +2109,8 @@ function gameLoop(timestamp) {
     updateMeteors();
     updatePowerups();
     updateShield();
+    updateShooting();
+    updateBullets();
     checkCollisions();
     updateTimer(dt);
     updateParticles();
@@ -1887,8 +2143,10 @@ function gameLoop(timestamp) {
   // Draw everything
   drawMeteors();
   drawPowerups();
+  drawBullets();
   drawPlayer();
   drawShield();
+  drawShootingIndicator();
   drawParticles();
 
   // Timer bar (only during playing)
