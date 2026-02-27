@@ -159,12 +159,12 @@
 
   <canvas id="gameCanvas"></canvas>
   <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
-  <p class="controls-info">TAP TWO TILES TO SWAP THEM &mdash; COMPLETE THE STAR MAP</p>
+  <p class="controls-info">TAP TWO TILES TO SWAP THEM &mdash; REBUILD THE PLANET</p>
 
 <script>
 // ==========================================
 //  ALMOST HOME
-//  Puzzle together an intergalactic map!
+//  Reassemble the scrambled planet!
 // ==========================================
 
 const canvas = document.getElementById('gameCanvas');
@@ -245,9 +245,9 @@ function seededRandom(seed) {
 }
 
 // ==========================================
-//  PROCEDURAL GALAXY GENERATION
+//  PROCEDURAL PLANET GENERATION
 // ==========================================
-function generateGalaxy() {
+function generatePlanet() {
   const seed = Date.now() + Math.floor(Math.random() * 100000);
   const rng = seededRandom(seed);
 
@@ -257,102 +257,197 @@ function generateGalaxy() {
   const offCtx = offCanvas.getContext('2d');
 
   // 1. Dark space background
-  offCtx.fillStyle = '#050510';
+  offCtx.fillStyle = '#030318';
   offCtx.fillRect(0, 0, W, H);
 
-  // 2. Nebula blobs
-  const nebulaCount = 2 + Math.floor(rng() * 3);
-  const nebColors = [
-    [80, 0, 120],   // purple
-    [0, 40, 100],   // deep blue
-    [120, 0, 60],   // magenta
-    [0, 60, 80],    // teal
-    [60, 20, 100],  // violet
-    [100, 20, 40],  // deep red
-  ];
-
-  for (let i = 0; i < nebulaCount; i++) {
-    const cx = rng() * W;
-    const cy = rng() * H;
-    const radius = 100 + rng() * 200;
-    const color = nebColors[Math.floor(rng() * nebColors.length)];
-    const grad = offCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-    grad.addColorStop(0, `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.4)`);
-    grad.addColorStop(0.5, `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.15)`);
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    offCtx.fillStyle = grad;
-    offCtx.fillRect(0, 0, W, H);
-  }
-
-  // 3. Star field
-  const starCount = 300 + Math.floor(rng() * 200);
-  const brightStars = [];
+  // 2. Background stars
+  const starCount = 150 + Math.floor(rng() * 100);
   const tints = ['255,255,255', '200,220,255', '255,240,200', '180,200,255'];
-
   for (let i = 0; i < starCount; i++) {
     const x = rng() * W;
     const y = rng() * H;
-    const isBright = rng() < 0.05;
-    const size = isBright ? (2 + rng() * 1.5) : (0.5 + rng() * 1.5);
-    const brightness = 0.3 + rng() * 0.7;
+    const size = 0.5 + rng() * 1.5;
+    const brightness = 0.2 + rng() * 0.6;
     const tint = tints[Math.floor(rng() * tints.length)];
-
     offCtx.fillStyle = `rgba(${tint}, ${brightness})`;
     offCtx.beginPath();
     offCtx.arc(x, y, size / 2, 0, Math.PI * 2);
     offCtx.fill();
-
-    // Glow on bright stars
-    if (isBright) {
-      offCtx.fillStyle = `rgba(${tint}, ${brightness * 0.15})`;
-      offCtx.beginPath();
-      offCtx.arc(x, y, size * 2.5, 0, Math.PI * 2);
-      offCtx.fill();
-      brightStars.push({ x, y });
-    }
   }
 
-  // 4. Constellations
-  if (brightStars.length >= 6) {
-    const shuffled = [...brightStars].sort(() => rng() - 0.5);
-    const constellationCount = 2 + Math.floor(rng() * 3);
-    const perConstellation = Math.max(3, Math.floor(shuffled.length / constellationCount));
+  // 3. Planet — large, centered, with recognizable features
+  const planetR = 160 + Math.floor(rng() * 40); // 160-200 radius
+  const px = W / 2 + (rng() - 0.5) * 30;
+  const py = H / 2 + (rng() - 0.5) * 30;
 
-    for (let c = 0; c < constellationCount; c++) {
-      const start = c * perConstellation;
-      const groupStars = shuffled.slice(start, start + Math.min(perConstellation, 7));
-      if (groupStars.length < 2) continue;
+  // Planet color palettes (base, midtone, dark, highlight)
+  const palettes = [
+    { base: [60, 130, 200], mid: [40, 100, 170], dark: [20, 60, 120], hi: [100, 180, 240], name: 'ice' },
+    { base: [180, 100, 50],  mid: [150, 75, 35],  dark: [100, 45, 20], hi: [220, 150, 90], name: 'desert' },
+    { base: [50, 160, 80],   mid: [35, 120, 60],  dark: [20, 80, 40],  hi: [80, 200, 120], name: 'forest' },
+    { base: [160, 80, 160],  mid: [120, 50, 130], dark: [80, 30, 90],  hi: [200, 130, 200], name: 'nebula' },
+    { base: [200, 140, 60],  mid: [170, 110, 40], dark: [130, 80, 25], hi: [240, 190, 100], name: 'gas' },
+    { base: [140, 60, 60],   mid: [110, 40, 40],  dark: [70, 25, 25],  hi: [190, 100, 90], name: 'mars' },
+  ];
+  const pal = palettes[Math.floor(rng() * palettes.length)];
 
-      // Sort by angle from centroid for clean path
-      const cx = groupStars.reduce((s, p) => s + p.x, 0) / groupStars.length;
-      const cy = groupStars.reduce((s, p) => s + p.y, 0) / groupStars.length;
-      groupStars.sort((a, b) =>
-        Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)
-      );
+  // Base planet circle with gradient
+  const planetGrad = offCtx.createRadialGradient(
+    px - planetR * 0.3, py - planetR * 0.3, planetR * 0.1,
+    px, py, planetR
+  );
+  planetGrad.addColorStop(0, `rgb(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]})`);
+  planetGrad.addColorStop(0.5, `rgb(${pal.base[0]}, ${pal.base[1]}, ${pal.base[2]})`);
+  planetGrad.addColorStop(0.85, `rgb(${pal.mid[0]}, ${pal.mid[1]}, ${pal.mid[2]})`);
+  planetGrad.addColorStop(1, `rgb(${pal.dark[0]}, ${pal.dark[1]}, ${pal.dark[2]})`);
 
-      offCtx.strokeStyle = `rgba(100, 200, 255, ${0.25 + rng() * 0.2})`;
-      offCtx.lineWidth = 1;
-      offCtx.setLineDash([4, 4]);
+  offCtx.save();
+  offCtx.beginPath();
+  offCtx.arc(px, py, planetR, 0, Math.PI * 2);
+  offCtx.clip();
+
+  offCtx.fillStyle = planetGrad;
+  offCtx.fillRect(px - planetR, py - planetR, planetR * 2, planetR * 2);
+
+  // Surface bands (horizontal stripes with slight waviness)
+  const bandCount = 4 + Math.floor(rng() * 5);
+  for (let b = 0; b < bandCount; b++) {
+    const bandY = py - planetR + (b + 0.5) * (planetR * 2 / bandCount);
+    const bandH = planetR * 2 / bandCount * (0.3 + rng() * 0.5);
+    const bandAlpha = 0.08 + rng() * 0.15;
+    const lighter = rng() > 0.5;
+
+    offCtx.fillStyle = lighter
+      ? `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, ${bandAlpha})`
+      : `rgba(${pal.dark[0]}, ${pal.dark[1]}, ${pal.dark[2]}, ${bandAlpha})`;
+
+    offCtx.beginPath();
+    offCtx.moveTo(px - planetR - 10, bandY - bandH / 2);
+    for (let x = px - planetR; x <= px + planetR; x += 15) {
+      const wave = Math.sin((x + seed * 0.01) * 0.03) * 10 * rng();
+      offCtx.lineTo(x, bandY - bandH / 2 + wave);
+    }
+    for (let x = px + planetR; x >= px - planetR; x -= 15) {
+      const wave = Math.sin((x + seed * 0.02) * 0.04) * 8 * rng();
+      offCtx.lineTo(x, bandY + bandH / 2 + wave);
+    }
+    offCtx.closePath();
+    offCtx.fill();
+  }
+
+  // Surface features — craters or spots
+  const featureCount = 5 + Math.floor(rng() * 10);
+  for (let f = 0; f < featureCount; f++) {
+    const angle = rng() * Math.PI * 2;
+    const dist = rng() * planetR * 0.85;
+    const fx = px + Math.cos(angle) * dist;
+    const fy = py + Math.sin(angle) * dist;
+    const fr = 8 + rng() * 25;
+    const featureAlpha = 0.06 + rng() * 0.12;
+
+    if (rng() > 0.5) {
+      // Dark crater/spot
+      const cGrad = offCtx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+      cGrad.addColorStop(0, `rgba(${pal.dark[0]}, ${pal.dark[1]}, ${pal.dark[2]}, ${featureAlpha + 0.05})`);
+      cGrad.addColorStop(0.7, `rgba(${pal.dark[0]}, ${pal.dark[1]}, ${pal.dark[2]}, ${featureAlpha})`);
+      cGrad.addColorStop(1, `rgba(${pal.dark[0]}, ${pal.dark[1]}, ${pal.dark[2]}, 0)`);
+      offCtx.fillStyle = cGrad;
+    } else {
+      // Light spot
+      const cGrad = offCtx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+      cGrad.addColorStop(0, `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, ${featureAlpha + 0.05})`);
+      cGrad.addColorStop(0.7, `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, ${featureAlpha})`);
+      cGrad.addColorStop(1, `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, 0)`);
+      offCtx.fillStyle = cGrad;
+    }
+    offCtx.beginPath();
+    offCtx.arc(fx, fy, fr, 0, Math.PI * 2);
+    offCtx.fill();
+  }
+
+  // Shadow overlay — darkened limb on one side
+  const shadowAngle = rng() * Math.PI * 0.6 + Math.PI * 0.2;
+  const shadowX = px + Math.cos(shadowAngle) * planetR * 0.5;
+  const shadowY = py + Math.sin(shadowAngle) * planetR * 0.5;
+  const shadowGrad = offCtx.createRadialGradient(
+    px - Math.cos(shadowAngle) * planetR * 0.6,
+    py - Math.sin(shadowAngle) * planetR * 0.6,
+    planetR * 0.2,
+    shadowX, shadowY, planetR * 1.3
+  );
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  shadowGrad.addColorStop(0.6, 'rgba(0, 0, 0, 0.2)');
+  shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.6)');
+  offCtx.fillStyle = shadowGrad;
+  offCtx.fillRect(px - planetR, py - planetR, planetR * 2, planetR * 2);
+
+  offCtx.restore(); // unclip
+
+  // 4. Atmosphere glow
+  const glowGrad = offCtx.createRadialGradient(px, py, planetR * 0.95, px, py, planetR * 1.15);
+  glowGrad.addColorStop(0, `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, 0.25)`);
+  glowGrad.addColorStop(0.5, `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, 0.08)`);
+  glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  offCtx.fillStyle = glowGrad;
+  offCtx.beginPath();
+  offCtx.arc(px, py, planetR * 1.15, 0, Math.PI * 2);
+  offCtx.fill();
+
+  // 5. Optional ring (40% chance)
+  if (rng() < 0.4) {
+    offCtx.save();
+    offCtx.translate(px, py);
+    offCtx.scale(1, 0.3);
+    const ringInner = planetR * 1.3;
+    const ringOuter = planetR * 1.7;
+    offCtx.strokeStyle = `rgba(${pal.hi[0]}, ${pal.hi[1]}, ${pal.hi[2]}, 0.25)`;
+    offCtx.lineWidth = 2;
+    for (let r = ringInner; r < ringOuter; r += 4) {
+      offCtx.globalAlpha = 0.1 + rng() * 0.15;
       offCtx.beginPath();
-      offCtx.moveTo(groupStars[0].x, groupStars[0].y);
-      for (let i = 1; i < groupStars.length; i++) {
-        offCtx.lineTo(groupStars[i].x, groupStars[i].y);
-      }
+      offCtx.arc(0, 0, r, 0, Math.PI * 2);
       offCtx.stroke();
-      offCtx.setLineDash([]);
+    }
+    offCtx.globalAlpha = 1;
+    offCtx.restore();
+  }
 
-      // Highlight constellation stars
-      groupStars.forEach(s => {
-        offCtx.strokeStyle = 'rgba(100, 200, 255, 0.4)';
-        offCtx.lineWidth = 1;
+  // 6. Optional moon (50% chance)
+  if (rng() < 0.5) {
+    const moonAngle = rng() * Math.PI * 2;
+    const moonDist = planetR * 1.5 + rng() * 80;
+    const mx = px + Math.cos(moonAngle) * moonDist;
+    const my = py + Math.sin(moonAngle) * moonDist;
+    const moonR = 12 + rng() * 18;
+
+    // Only draw if on canvas
+    if (mx > -moonR && mx < W + moonR && my > -moonR && my < H + moonR) {
+      const moonGrad = offCtx.createRadialGradient(
+        mx - moonR * 0.3, my - moonR * 0.3, moonR * 0.1,
+        mx, my, moonR
+      );
+      moonGrad.addColorStop(0, '#ddd');
+      moonGrad.addColorStop(0.7, '#999');
+      moonGrad.addColorStop(1, '#555');
+      offCtx.fillStyle = moonGrad;
+      offCtx.beginPath();
+      offCtx.arc(mx, my, moonR, 0, Math.PI * 2);
+      offCtx.fill();
+
+      // Moon craters
+      for (let c = 0; c < 3; c++) {
+        const ca = rng() * Math.PI * 2;
+        const cd = rng() * moonR * 0.6;
+        const cr = 2 + rng() * 4;
+        offCtx.fillStyle = `rgba(80, 80, 80, ${0.2 + rng() * 0.2})`;
         offCtx.beginPath();
-        offCtx.arc(s.x, s.y, 5, 0, Math.PI * 2);
-        offCtx.stroke();
-      });
+        offCtx.arc(mx + Math.cos(ca) * cd, my + Math.sin(ca) * cd, cr, 0, Math.PI * 2);
+        offCtx.fill();
+      }
     }
   }
 
-  // 5. Very subtle grid hint lines
+  // 7. Subtle grid hint lines
   for (let col = 1; col < gridCols; col++) {
     const x = col * tileW;
     offCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
@@ -723,7 +818,7 @@ function startGame() {
   lastTimestamp = 0;
   timerWarningPlayed = false;
 
-  generateGalaxy();
+  generatePlanet();
   initPuzzle(4, 4);
   waveTimeRemaining = WAVE_1_TIME;
 
@@ -738,7 +833,7 @@ function nextWave() {
   timerWarningPlayed = false;
   lastTimestamp = 0;
 
-  generateGalaxy();
+  generatePlanet();
   initPuzzle(5, 5);
   waveTimeRemaining = WAVE_2_TIME;
 
@@ -796,7 +891,7 @@ function updateTimer(dt) {
       } else {
         playLifeLostSound();
         shakeTimer = 15;
-        generateGalaxy();
+        generatePlanet();
         initPuzzle(gridCols, gridRows);
         waveTimeRemaining = wave === 1 ? WAVE_1_TIME : WAVE_2_TIME;
         timerWarningPlayed = false;
@@ -912,8 +1007,8 @@ function drawWaitingOverlay() {
   ctx.fillStyle = '#cc66ff';
   ctx.shadowColor = '#cc66ff';
   ctx.shadowBlur = 15;
-  ctx.fillText('STAR MAP', W / 2, H / 2 - 100);
-  ctx.fillText('SCRAMBLED', W / 2, H / 2 - 80);
+  ctx.fillText('PLANET', W / 2, H / 2 - 100);
+  ctx.fillText('SCRAMBLED!', W / 2, H / 2 - 80);
 
   ctx.font = '8px "Press Start 2P"';
   ctx.fillStyle = '#33ff33';
@@ -925,7 +1020,7 @@ function drawWaitingOverlay() {
   ctx.font = '7px "Press Start 2P"';
   ctx.fillStyle = '#fff';
   ctx.shadowBlur = 5;
-  ctx.fillText('REASSEMBLE THE GALAXY MAP', W / 2, H / 2 + 5);
+  ctx.fillText('REASSEMBLE THE PLANET IMAGE', W / 2, H / 2 + 5);
   ctx.fillText('TO CHART THE COURSE HOME', W / 2, H / 2 + 23);
 
   ctx.font = '6px "Press Start 2P"';
@@ -958,7 +1053,7 @@ function drawWaveTransitionOverlay() {
   ctx.font = '8px "Press Start 2P"';
   ctx.fillStyle = '#33ff33';
   ctx.shadowBlur = 8;
-  ctx.fillText('SECTOR 1 MAPPED!', W / 2, H / 2 - 55);
+  ctx.fillText('PLANET 1 REBUILT!', W / 2, H / 2 - 55);
 
   ctx.font = '7px "Press Start 2P"';
   ctx.fillStyle = '#fff';
@@ -969,7 +1064,7 @@ function drawWaveTransitionOverlay() {
   ctx.fillStyle = '#aaa';
   ctx.shadowBlur = 0;
   ctx.fillText("JORDAN'S EYES ARE GETTING", W / 2, H / 2 + 5);
-  ctx.fillText('BLURRY FROM ALL THOSE STARS.', W / 2, H / 2 + 22);
+  ctx.fillText('BLURRY FROM ALL THOSE PIECES.', W / 2, H / 2 + 22);
 
   const pulse = 0.7 + Math.sin(frame * 0.12) * 0.3;
   ctx.font = '10px "Press Start 2P"';
@@ -999,7 +1094,7 @@ function drawGameOverOverlay() {
   ctx.fillStyle = '#aaa';
   ctx.shadowBlur = 0;
   const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
-  ctx.fillText(pilotName + " COULDN'T MAP THE STARS", W / 2, H / 2 - 25);
+  ctx.fillText(pilotName + " COULDN'T REBUILD IT", W / 2, H / 2 - 25);
 
   ctx.font = '8px "Press Start 2P"';
   ctx.fillStyle = '#fff';
@@ -1151,12 +1246,12 @@ function drawCutscene() {
     ctx.fillStyle = '#ff0';
     ctx.shadowColor = '#ff0';
     ctx.shadowBlur = 12;
-    ctx.fillText('STAR MAP COMPLETE!', W / 2, 60);
+    ctx.fillText('PLANET REBUILT!', W / 2, 60);
     ctx.shadowBlur = 0;
 
     ctx.font = '7px "Press Start 2P"';
     ctx.fillStyle = '#33ff33';
-    ctx.fillText('THE GALAXY IS MAPPED...', W / 2, 90);
+    ctx.fillText('THE PLANET IS WHOLE AGAIN...', W / 2, 90);
   } else if (cutscenePhase === 1) {
     // Draw route line
     const progress = Math.min(1, (cutsceneTimer - 180) / 120);
