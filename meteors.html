@@ -228,7 +228,7 @@ const WAVE_DURATION = 45; // seconds per wave
 let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win | victoryCutscene
 let score = 0;
 let highScore = parseInt(localStorage.getItem('meteors-high') || '0');
-let lives = 3;
+let lives = 9;
 let wave = 1;
 let frame = 0;
 let shakeTimer = 0;
@@ -746,7 +746,7 @@ function getMaxMeteors() {
 function startGame() {
   ensureAudio();
   score = 0;
-  lives = 3;
+  lives = 9;
   wave = 1;
   currentPilot = 'jordan';
   player.x = W / 2;
