@@ -239,12 +239,12 @@
         </div>
         <span class="status">BEAT LEVEL 3 TO UNLOCK</span>
       </li>
-      <li class="menu-item level-purple locked">
+      <li class="menu-item level-purple locked" id="level5">
         <div class="game-info">
           <span class="game-name">LEVEL 5: ALMOST HOME</span>
           <span class="game-desc">Puzzle together an intergalactic map to chart the course home.</span>
         </div>
-        <span class="status">COMING SOON</span>
+        <span class="status">BEAT LEVEL 4 TO UNLOCK</span>
       </li>
       <li class="menu-item level-yellow locked">
         <div class="game-info">
@@ -558,6 +558,14 @@
         if (el) {
           el.classList.remove('locked');
           el.setAttribute('onclick', "window.location='decode.html'");
+          el.querySelector('.status').textContent = 'PLAY NOW!';
+        }
+      }
+      if (localStorage.getItem('level-4-complete')) {
+        const el = document.getElementById('level5');
+        if (el) {
+          el.classList.remove('locked');
+          el.setAttribute('onclick', "window.location='puzzle.html'");
           el.querySelector('.status').textContent = 'PLAY NOW!';
         }
       }
