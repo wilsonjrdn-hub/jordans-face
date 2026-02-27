@@ -975,6 +975,34 @@ function drawPuzzle() {
     ctx.lineWidth = 1;
     ctx.strokeRect(dx, dy, tileW, tileH);
 
+    // Edge piece highlights — bright cyan on sides that belong on the puzzle border
+    const solnRow = Math.floor(solnPos / gridCols);
+    const solnCol = solnPos % gridCols;
+    const isTop = solnRow === 0;
+    const isBottom = solnRow === gridRows - 1;
+    const isLeft = solnCol === 0;
+    const isRight = solnCol === gridCols - 1;
+
+    if (isTop || isBottom || isLeft || isRight) {
+      ctx.strokeStyle = 'rgba(0, 200, 255, 0.6)';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#00c8ff';
+      ctx.shadowBlur = 6;
+      if (isTop) {
+        ctx.beginPath(); ctx.moveTo(dx + 1, dy + 1); ctx.lineTo(dx + tileW - 1, dy + 1); ctx.stroke();
+      }
+      if (isBottom) {
+        ctx.beginPath(); ctx.moveTo(dx + 1, dy + tileH - 1); ctx.lineTo(dx + tileW - 1, dy + tileH - 1); ctx.stroke();
+      }
+      if (isLeft) {
+        ctx.beginPath(); ctx.moveTo(dx + 1, dy + 1); ctx.lineTo(dx + 1, dy + tileH - 1); ctx.stroke();
+      }
+      if (isRight) {
+        ctx.beginPath(); ctx.moveTo(dx + tileW - 1, dy + 1); ctx.lineTo(dx + tileW - 1, dy + tileH - 1); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+    }
+
     // Correct placement glow
     if (solnPos === displayPos) {
       ctx.strokeStyle = 'rgba(51, 255, 51, 0.5)';
