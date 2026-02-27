@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALMOST HOME | Jordan's Face .com</title>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0a;
+      color: #33ff33;
+      font-family: 'Press Start 2P', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    .scanlines {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 1000;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0,0,0,0.15) 0px,
+        rgba(0,0,0,0.15) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    }
+
+    header {
+      text-align: center;
+      padding: 15px 10px 5px;
+    }
+
+    .title {
+      font-size: clamp(0.6rem, 2.5vw, 1rem);
+      color: #cc66ff;
+      text-shadow: 0 0 10px #cc66ff, 0 0 20px #9933cc;
+    }
+
+    .title a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .title a:hover {
+      text-shadow: 0 0 15px #cc66ff, 0 0 30px #9933cc, 0 0 45px #cc66ff;
+    }
+
+    .hud {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 560px;
+      padding: 10px 5px;
+      font-size: 0.55rem;
+    }
+
+    .score-label { color: #ff0; }
+    .score-value { color: #fff; margin-left: 5px; }
+    .lives-display { display: flex; gap: 5px; align-items: center; }
+    .life-icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .life-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #gameCanvas {
+      border: 3px solid #333;
+      box-shadow: 0 0 20px rgba(204,102,255,0.2);
+      max-width: calc(100vw - 20px);
+      height: auto;
+      cursor: pointer;
+    }
+
+    .game-msg {
+      font-size: 0.6rem;
+      color: #33ff33;
+      margin-top: 12px;
+      text-align: center;
+      line-height: 2;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .controls-info {
+      font-size: 0.45rem;
+      color: #555;
+      margin-top: 8px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    @media (max-width: 600px) {
+      .hud {
+        font-size: 0.4rem;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        padding: 5px;
+      }
+      header { padding: 8px 5px 2px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <header>
+    <h1 class="title"><a href="index.html">ALMOST HOME</a></h1>
+  </header>
+
+  <div class="hud">
+    <div>
+      <span class="score-label">SCORE:</span>
+      <span class="score-value" id="score">0</span>
+    </div>
+    <div>
+      <span class="score-label">HI:</span>
+      <span class="score-value" id="highScoreDisplay">0</span>
+    </div>
+    <div>
+      <span class="score-label">WAVE:</span>
+      <span class="score-value" id="wave">JORDAN 1/2</span>
+    </div>
+    <div>
+      <span class="score-label">TIME:</span>
+      <span class="score-value" id="timeDisplay">90</span>
+    </div>
+    <div>
+      <span class="score-label">PIECES:</span>
+      <span class="score-value" id="piecesDisplay">0/16</span>
+    </div>
+    <div class="lives-display">
+      <span class="score-label">LIVES:</span>
+      <span id="livesIcons"></span>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas"></canvas>
+  <p class="game-msg" id="gameMsg">PRESS ENTER OR TAP TO START</p>
+  <p class="controls-info">TAP TWO TILES TO SWAP THEM &mdash; COMPLETE THE STAR MAP</p>
+
+<script>
+// ==========================================
+//  ALMOST HOME
+//  Puzzle together an intergalactic map!
+// ==========================================
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const W = 504;
+const H = 504;
+canvas.width = W;
+canvas.height = H;
+
+// Load face image
+const faceImg = new Image();
+faceImg.src = 'images/jordan.jpeg';
+
+// ---- Game Constants ----
+const MAX_WAVES = 2;
+const WAVE_1_TIME = 90;
+const WAVE_2_TIME = 120;
+const MAX_WRONG = 3; // not used for puzzle but keeping pattern
+
+// ---- Game State ----
+let gameState = 'waiting'; // waiting | playing | waveTransition | gameover | win | victoryCutscene
+let score = 0;
+let highScore = parseInt(localStorage.getItem('puzzle-high') || '0');
+let lives = 3;
+let wave = 1;
+let frame = 0;
+let shakeTimer = 0;
+let waveTransitionTimer = 0;
+const WAVE_TRANSITION_DURATION = 240;
+let waveBonusAmount = 0;
+let currentPilot = 'jordan';
+
+// ---- Timer ----
+let waveTimeRemaining = WAVE_1_TIME;
+let lastTimestamp = 0;
+let timerWarningPlayed = false;
+
+// ---- Puzzle State ----
+let gridCols = 4;
+let gridRows = 4;
+let tileW = W / 4;
+let tileH = H / 4;
+let solutionImage = null; // offscreen canvas with generated galaxy
+let grid = []; // grid[displayPos] = solutionPos
+let selectedTile = -1;
+let correctCount = 0;
+let totalTiles = 16;
+let swapCount = 0;
+
+// ---- Victory Cutscene ----
+let cutsceneTimer = 0;
+let cutsceneStars = [];
+let cutscenePhase = 0;
+let cutsceneRoute = [];
+
+// ---- Stars background ----
+const bgStars = [];
+for (let i = 0; i < 80; i++) {
+  bgStars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    size: Math.random() * 2 + 0.5,
+    speed: Math.random() * 0.5 + 0.2,
+    brightness: Math.random(),
+  });
+}
+
+// ==========================================
+//  SEEDED RANDOM
+// ==========================================
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 1664525 + 1013904223) & 0xFFFFFFFF;
+    return (s >>> 0) / 0xFFFFFFFF;
+  };
+}
+
+// ==========================================
+//  PROCEDURAL GALAXY GENERATION
+// ==========================================
+function generateGalaxy() {
+  const seed = Date.now() + Math.floor(Math.random() * 100000);
+  const rng = seededRandom(seed);
+
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = W;
+  offCanvas.height = H;
+  const offCtx = offCanvas.getContext('2d');
+
+  // 1. Dark space background
+  offCtx.fillStyle = '#050510';
+  offCtx.fillRect(0, 0, W, H);
+
+  // 2. Nebula blobs
+  const nebulaCount = 2 + Math.floor(rng() * 3);
+  const nebColors = [
+    [80, 0, 120],   // purple
+    [0, 40, 100],   // deep blue
+    [120, 0, 60],   // magenta
+    [0, 60, 80],    // teal
+    [60, 20, 100],  // violet
+    [100, 20, 40],  // deep red
+  ];
+
+  for (let i = 0; i < nebulaCount; i++) {
+    const cx = rng() * W;
+    const cy = rng() * H;
+    const radius = 100 + rng() * 200;
+    const color = nebColors[Math.floor(rng() * nebColors.length)];
+    const grad = offCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    grad.addColorStop(0, `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.4)`);
+    grad.addColorStop(0.5, `rgba(${color[0]}, ${color[1]}, ${color[2]}, 0.15)`);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    offCtx.fillStyle = grad;
+    offCtx.fillRect(0, 0, W, H);
+  }
+
+  // 3. Star field
+  const starCount = 300 + Math.floor(rng() * 200);
+  const brightStars = [];
+  const tints = ['255,255,255', '200,220,255', '255,240,200', '180,200,255'];
+
+  for (let i = 0; i < starCount; i++) {
+    const x = rng() * W;
+    const y = rng() * H;
+    const isBright = rng() < 0.05;
+    const size = isBright ? (2 + rng() * 1.5) : (0.5 + rng() * 1.5);
+    const brightness = 0.3 + rng() * 0.7;
+    const tint = tints[Math.floor(rng() * tints.length)];
+
+    offCtx.fillStyle = `rgba(${tint}, ${brightness})`;
+    offCtx.beginPath();
+    offCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+    offCtx.fill();
+
+    // Glow on bright stars
+    if (isBright) {
+      offCtx.fillStyle = `rgba(${tint}, ${brightness * 0.15})`;
+      offCtx.beginPath();
+      offCtx.arc(x, y, size * 2.5, 0, Math.PI * 2);
+      offCtx.fill();
+      brightStars.push({ x, y });
+    }
+  }
+
+  // 4. Constellations
+  if (brightStars.length >= 6) {
+    const shuffled = [...brightStars].sort(() => rng() - 0.5);
+    const constellationCount = 2 + Math.floor(rng() * 3);
+    const perConstellation = Math.max(3, Math.floor(shuffled.length / constellationCount));
+
+    for (let c = 0; c < constellationCount; c++) {
+      const start = c * perConstellation;
+      const groupStars = shuffled.slice(start, start + Math.min(perConstellation, 7));
+      if (groupStars.length < 2) continue;
+
+      // Sort by angle from centroid for clean path
+      const cx = groupStars.reduce((s, p) => s + p.x, 0) / groupStars.length;
+      const cy = groupStars.reduce((s, p) => s + p.y, 0) / groupStars.length;
+      groupStars.sort((a, b) =>
+        Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)
+      );
+
+      offCtx.strokeStyle = `rgba(100, 200, 255, ${0.25 + rng() * 0.2})`;
+      offCtx.lineWidth = 1;
+      offCtx.setLineDash([4, 4]);
+      offCtx.beginPath();
+      offCtx.moveTo(groupStars[0].x, groupStars[0].y);
+      for (let i = 1; i < groupStars.length; i++) {
+        offCtx.lineTo(groupStars[i].x, groupStars[i].y);
+      }
+      offCtx.stroke();
+      offCtx.setLineDash([]);
+
+      // Highlight constellation stars
+      groupStars.forEach(s => {
+        offCtx.strokeStyle = 'rgba(100, 200, 255, 0.4)';
+        offCtx.lineWidth = 1;
+        offCtx.beginPath();
+        offCtx.arc(s.x, s.y, 5, 0, Math.PI * 2);
+        offCtx.stroke();
+      });
+    }
+  }
+
+  // 5. Very subtle grid hint lines
+  for (let col = 1; col < gridCols; col++) {
+    const x = col * tileW;
+    offCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    offCtx.lineWidth = 1;
+    offCtx.beginPath();
+    offCtx.moveTo(x, 0);
+    offCtx.lineTo(x, H);
+    offCtx.stroke();
+  }
+  for (let row = 1; row < gridRows; row++) {
+    const y = row * tileH;
+    offCtx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+    offCtx.lineWidth = 1;
+    offCtx.beginPath();
+    offCtx.moveTo(0, y);
+    offCtx.lineTo(W, y);
+    offCtx.stroke();
+  }
+
+  solutionImage = offCanvas;
+}
+
+// ==========================================
+//  PUZZLE INIT & LOGIC
+// ==========================================
+function initPuzzle(cols, rows) {
+  gridCols = cols;
+  gridRows = rows;
+  totalTiles = cols * rows;
+  tileW = Math.floor(W / cols);
+  tileH = Math.floor(H / rows);
+
+  // Create grid: each index holds the solution position
+  grid = [];
+  for (let i = 0; i < totalTiles; i++) grid[i] = i;
+
+  // Fisher-Yates shuffle
+  for (let i = grid.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [grid[i], grid[j]] = [grid[j], grid[i]];
+  }
+
+  // Ensure puzzle isn't already solved
+  while (checkSolved()) {
+    [grid[0], grid[1]] = [grid[1], grid[0]];
+  }
+
+  correctCount = countCorrect();
+  selectedTile = -1;
+  swapCount = 0;
+}
+
+function countCorrect() {
+  let count = 0;
+  for (let i = 0; i < totalTiles; i++) {
+    if (grid[i] === i) count++;
+  }
+  return count;
+}
+
+function checkSolved() {
+  for (let i = 0; i < totalTiles; i++) {
+    if (grid[i] !== i) return false;
+  }
+  return true;
+}
+
+function performSwap(posA, posB) {
+  [grid[posA], grid[posB]] = [grid[posB], grid[posA]];
+  swapCount++;
+
+  const correctA = (grid[posA] === posA);
+  const correctB = (grid[posB] === posB);
+
+  if (correctA || correctB) {
+    playCorrectPlaceSound();
+    score += 100;
+    if (correctA && correctB) score += 100;
+  } else {
+    playSwapSound();
+  }
+
+  correctCount = countCorrect();
+  updateHUD();
+
+  if (checkSolved()) {
+    puzzleComplete();
+  }
+}
+
+function puzzleComplete() {
+  const timeBonus = Math.floor(waveTimeRemaining * 10);
+  const minSwaps = totalTiles - 1;
+  const efficiencyRatio = Math.max(0, 1 - (swapCount - minSwaps) / (totalTiles * 2));
+  const efficiencyBonus = Math.floor(efficiencyRatio * 500);
+  const totalBonus = timeBonus + efficiencyBonus;
+  score += totalBonus;
+
+  if (wave >= MAX_WAVES) {
+    score += 1000;
+    localStorage.setItem('level-5-complete', 'true');
+    playWinSound();
+    saveHighScore();
+    updateHUD();
+    document.getElementById('gameMsg').textContent = '';
+    gameState = 'victoryCutscene';
+    initCutscene();
+  } else {
+    waveBonusAmount = totalBonus + 500;
+    score += 500;
+    gameState = 'waveTransition';
+    waveTransitionTimer = WAVE_TRANSITION_DURATION;
+    playWaveCompleteSound();
+    saveHighScore();
+    updateHUD();
+  }
+}
+
+// ==========================================
+//  AUDIO
+// ==========================================
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+}
+
+function playTileSelectSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(800, t);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.08);
+}
+
+function playTileDeselectSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(500, t);
+  gain.gain.setValueAtTime(0.03, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.06);
+}
+
+function playSwapSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(400, t);
+  osc.frequency.linearRampToValueAtTime(600, t + 0.08);
+  gain.gain.setValueAtTime(0.05, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+function playCorrectPlaceSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.08);
+    gain.gain.setValueAtTime(0.05, t + i * 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.08 + 0.2);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.08);
+    osc.stop(t + i * 0.08 + 0.25);
+  });
+}
+
+function playWaveCompleteSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.12);
+    gain.gain.setValueAtTime(0.06, t + i * 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.12);
+    osc.stop(t + i * 0.12 + 0.35);
+  });
+}
+
+function playWinSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const notes = [523, 659, 784, 1047, 1319, 1568];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, t + i * 0.1);
+    gain.gain.setValueAtTime(0.06, t + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t + i * 0.1);
+    osc.stop(t + i * 0.1 + 0.45);
+  });
+}
+
+function playGameOverSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(200, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 1.5);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 1.5);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 1.6);
+}
+
+function playLifeLostSound() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(300, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  gain.gain.setValueAtTime(0.1, t);
+  gain.gain.linearRampToValueAtTime(0, t + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.35);
+}
+
+function playTimerWarningBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(1200, t);
+  gain.gain.setValueAtTime(0.04, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function playRadioBeep() {
+  ensureAudio();
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  const filter = audioCtx.createBiquadFilter();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800 + Math.random() * 400, t);
+  osc.frequency.exponentialRampToValueAtTime(600 + Math.random() * 200, t + 0.15);
+  filter.type = 'bandpass';
+  filter.frequency.value = 1200;
+  filter.Q.value = 5;
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.18);
+}
+
+// ==========================================
+//  INPUT
+// ==========================================
+function handleTileClick(canvasX, canvasY) {
+  if (gameState !== 'playing') return;
+
+  const col = Math.floor(canvasX / tileW);
+  const row = Math.floor(canvasY / tileH);
+  if (col < 0 || col >= gridCols || row < 0 || row >= gridRows) return;
+
+  const clickedPos = row * gridCols + col;
+
+  if (selectedTile === -1) {
+    selectedTile = clickedPos;
+    playTileSelectSound();
+  } else if (selectedTile === clickedPos) {
+    selectedTile = -1;
+    playTileDeselectSound();
+  } else {
+    performSwap(selectedTile, clickedPos);
+    selectedTile = -1;
+  }
+}
+
+canvas.addEventListener('click', (e) => {
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    startGame();
+    return;
+  }
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  handleTileClick(x, y);
+});
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+    startGame();
+    return;
+  }
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const x = (touch.clientX - rect.left) * scaleX;
+  const y = (touch.clientY - rect.top) * scaleY;
+  handleTileClick(x, y);
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (gameState === 'waiting' || gameState === 'gameover' || gameState === 'win') {
+      startGame();
+    }
+  }
+});
+
+// ==========================================
+//  INIT
+// ==========================================
+function startGame() {
+  ensureAudio();
+  score = 0;
+  lives = 3;
+  wave = 1;
+  currentPilot = 'jordan';
+  lastTimestamp = 0;
+  timerWarningPlayed = false;
+
+  generateGalaxy();
+  initPuzzle(4, 4);
+  waveTimeRemaining = WAVE_1_TIME;
+
+  gameState = 'playing';
+  document.getElementById('gameMsg').textContent = '';
+  updateHUD();
+}
+
+function nextWave() {
+  wave++;
+  currentPilot = 'chai';
+  timerWarningPlayed = false;
+  lastTimestamp = 0;
+
+  generateGalaxy();
+  initPuzzle(5, 5);
+  waveTimeRemaining = WAVE_2_TIME;
+
+  updateHUD();
+}
+
+// ==========================================
+//  HUD
+// ==========================================
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  document.getElementById('wave').textContent = pilotName + ' ' + wave + '/' + MAX_WAVES;
+  document.getElementById('highScoreDisplay').textContent = highScore;
+  document.getElementById('timeDisplay').textContent = Math.ceil(waveTimeRemaining);
+  document.getElementById('piecesDisplay').textContent = correctCount + '/' + totalTiles;
+  let iconsHtml = '';
+  for (let i = 0; i < lives; i++) {
+    if (currentPilot === 'chai') {
+      iconsHtml += '<span class="life-icon" style="background:#222;display:inline-flex;align-items:center;justify-content:center;font-size:14px;">&#128049;</span> ';
+    } else {
+      iconsHtml += '<span class="life-icon"><img src="images/jordan.jpeg" alt="life"></span> ';
+    }
+  }
+  document.getElementById('livesIcons').innerHTML = iconsHtml;
+}
+
+// ==========================================
+//  TIMER
+// ==========================================
+function updateTimer(dt) {
+  if (gameState !== 'playing') return;
+
+  waveTimeRemaining -= dt;
+
+  if (waveTimeRemaining <= 10 && waveTimeRemaining > 0) {
+    if (frame % 30 === 0) {
+      playTimerWarningBeep();
+    }
+    timerWarningPlayed = true;
+  }
+
+  if (waveTimeRemaining <= 0) {
+    waveTimeRemaining = 0;
+    if (checkSolved()) {
+      puzzleComplete();
+    } else {
+      lives--;
+      updateHUD();
+      if (lives <= 0) {
+        gameState = 'gameover';
+        playGameOverSound();
+        saveHighScore();
+        document.getElementById('gameMsg').innerHTML = 'GAME OVER<br>PRESS ENTER TO TRY AGAIN';
+      } else {
+        playLifeLostSound();
+        shakeTimer = 15;
+        generateGalaxy();
+        initPuzzle(gridCols, gridRows);
+        waveTimeRemaining = wave === 1 ? WAVE_1_TIME : WAVE_2_TIME;
+        timerWarningPlayed = false;
+        lastTimestamp = 0;
+      }
+    }
+  }
+
+  updateHUD();
+}
+
+function saveHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    localStorage.setItem('puzzle-high', highScore);
+    updateHUD();
+  }
+}
+
+// ==========================================
+//  DRAW
+// ==========================================
+function drawBgStars() {
+  bgStars.forEach(s => {
+    s.y += s.speed;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    s.brightness += (Math.random() - 0.5) * 0.1;
+    s.brightness = Math.max(0.2, Math.min(1, s.brightness));
+    ctx.fillStyle = `rgba(255,255,255,${s.brightness * 0.5})`;
+    ctx.fillRect(s.x, s.y, s.size, s.size);
+  });
+}
+
+function drawTimerBar() {
+  const maxTime = wave === 1 ? WAVE_1_TIME : WAVE_2_TIME;
+  const pct = Math.max(0, waveTimeRemaining / maxTime);
+  const barW = W - 20;
+  const barH = 4;
+  const x = 10;
+  const y = H - 8;
+
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x, y, barW, barH);
+
+  let r, g;
+  if (pct > 0.5) {
+    r = Math.floor((1 - pct) * 2 * 255);
+    g = 255;
+  } else {
+    r = 255;
+    g = Math.floor(pct * 2 * 255);
+  }
+  const flash = (waveTimeRemaining <= 10 && Math.floor(frame / 8) % 2 === 0);
+  ctx.fillStyle = flash ? '#ff0000' : `rgb(${r},${g},0)`;
+  ctx.fillRect(x, y, barW * pct, barH);
+}
+
+function drawPuzzle() {
+  if (!solutionImage) return;
+
+  for (let displayPos = 0; displayPos < totalTiles; displayPos++) {
+    const solnPos = grid[displayPos];
+
+    // Source region from solution image
+    const srcCol = solnPos % gridCols;
+    const srcRow = Math.floor(solnPos / gridCols);
+    const sx = srcCol * tileW;
+    const sy = srcRow * tileH;
+
+    // Destination on canvas
+    const dstCol = displayPos % gridCols;
+    const dstRow = Math.floor(displayPos / gridCols);
+    const dx = dstCol * tileW;
+    const dy = dstRow * tileH;
+
+    // Draw the tile image
+    ctx.drawImage(solutionImage, sx, sy, tileW, tileH, dx, dy, tileW, tileH);
+
+    // Tile border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(dx, dy, tileW, tileH);
+
+    // Correct placement glow
+    if (solnPos === displayPos) {
+      ctx.strokeStyle = 'rgba(51, 255, 51, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(dx + 1, dy + 1, tileW - 2, tileH - 2);
+    }
+
+    // Selected tile highlight (pulsing yellow border)
+    if (displayPos === selectedTile) {
+      const pulse = 0.6 + Math.sin(frame * 0.15) * 0.4;
+      ctx.strokeStyle = `rgba(255, 255, 0, ${pulse})`;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#ff0';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(dx + 1, dy + 1, tileW - 2, tileH - 2);
+      ctx.shadowBlur = 0;
+    }
+  }
+}
+
+// ---- Overlays ----
+function drawWaitingOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+
+  ctx.font = '12px "Press Start 2P"';
+  ctx.fillStyle = '#cc66ff';
+  ctx.shadowColor = '#cc66ff';
+  ctx.shadowBlur = 15;
+  ctx.fillText('STAR MAP', W / 2, H / 2 - 100);
+  ctx.fillText('SCRAMBLED', W / 2, H / 2 - 80);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('JORDAN GRABS THE NAVIGATION', W / 2, H / 2 - 45);
+  ctx.fillText('CONSOLE', W / 2, H / 2 - 30);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText('REASSEMBLE THE GALAXY MAP', W / 2, H / 2 + 5);
+  ctx.fillText('TO CHART THE COURSE HOME', W / 2, H / 2 + 23);
+
+  ctx.font = '6px "Press Start 2P"';
+  ctx.fillStyle = '#888';
+  ctx.shadowBlur = 0;
+  ctx.fillText('TAP TWO TILES TO SWAP THEM', W / 2, H / 2 + 50);
+
+  const pulse = 0.5 + Math.sin(frame * 0.08) * 0.5;
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = `rgba(255, 255, 0, ${pulse})`;
+  ctx.fillText('PRESS ENTER TO START', W / 2, H / 2 + 85);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawWaveTransitionOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+
+  ctx.font = '14px "Press Start 2P"';
+  ctx.fillStyle = '#ff0';
+  ctx.shadowColor = '#ff0';
+  ctx.shadowBlur = 15;
+  ctx.fillText('GREAT JOB!', W / 2, H / 2 - 90);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowBlur = 8;
+  ctx.fillText('SECTOR 1 MAPPED!', W / 2, H / 2 - 55);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.shadowBlur = 5;
+  ctx.fillText('+' + waveBonusAmount + ' BONUS', W / 2, H / 2 - 30);
+
+  ctx.font = '7px "Press Start 2P"';
+  ctx.fillStyle = '#aaa';
+  ctx.shadowBlur = 0;
+  ctx.fillText("JORDAN'S EYES ARE GETTING", W / 2, H / 2 + 5);
+  ctx.fillText('BLURRY FROM ALL THOSE STARS.', W / 2, H / 2 + 22);
+
+  const pulse = 0.7 + Math.sin(frame * 0.12) * 0.3;
+  ctx.font = '10px "Press Start 2P"';
+  ctx.fillStyle = `rgba(180, 100, 255, ${pulse})`;
+  ctx.shadowColor = `rgba(180, 100, 255, ${pulse})`;
+  ctx.shadowBlur = 12;
+  ctx.fillText('CHAI! TAKE THE WHEEL!', W / 2, H / 2 + 65);
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+function drawGameOverOverlay() {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+
+  ctx.font = '16px "Press Start 2P"';
+  ctx.fillStyle = '#ff0000';
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 20;
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 60);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#aaa';
+  ctx.shadowBlur = 0;
+  const pilotName = currentPilot === 'jordan' ? 'JORDAN' : 'CHAI';
+  ctx.fillText(pilotName + " COULDN'T MAP THE STARS", W / 2, H / 2 - 25);
+
+  ctx.font = '8px "Press Start 2P"';
+  ctx.fillStyle = '#fff';
+  ctx.fillText('PIECES PLACED: ' + correctCount + '/' + totalTiles, W / 2, H / 2 + 5);
+
+  ctx.fillStyle = '#ff0';
+  ctx.fillText('SCORE: ' + score, W / 2, H / 2 + 30);
+
+  if (score >= highScore && score > 0) {
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#ff66cc';
+    ctx.fillText('★ NEW HIGH SCORE! ★', W / 2, H / 2 + 55);
+  }
+
+  ctx.shadowBlur = 0;
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
+// ==========================================
+//  VICTORY CUTSCENE
+// ==========================================
+function initCutscene() {
+  cutsceneTimer = 0;
+  cutscenePhase = 0;
+  cutsceneStars = [];
+  for (let i = 0; i < 80; i++) {
+    cutsceneStars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: Math.random() * 2 + 0.5,
+      speed: 0.5 + Math.random() * 2,
+    });
+  }
+  // Route waypoints
+  cutsceneRoute = [];
+  const steps = 8;
+  for (let i = 0; i <= steps; i++) {
+    cutsceneRoute.push({
+      x: (i / steps) * W * 0.8 + W * 0.1,
+      y: H * 0.85 - (i / steps) * H * 0.7 + (Math.random() - 0.5) * 40,
+    });
+  }
+}
+
+function updateCutscene() {
+  cutsceneTimer++;
+
+  if (cutsceneTimer < 180) cutscenePhase = 0;
+  else if (cutsceneTimer < 360) cutscenePhase = 1;
+  else cutscenePhase = 2;
+
+  if (cutscenePhase === 2) {
+    const t = cutsceneTimer - 360;
+    if (t === 30 || t === 50 || t === 70) playRadioBeep();
+  }
+
+  if (cutsceneTimer >= 600) {
+    window.location.href = 'index.html';
+  }
+}
+
+function drawCutscene() {
+  ctx.fillStyle = '#050510';
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  cutsceneStars.forEach(s => {
+    const speedMult = cutscenePhase === 2 ? 2 : 0.3;
+    s.y += s.speed * speedMult;
+    if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.4})`;
+    if (cutscenePhase === 2) {
+      // Streak effect
+      ctx.fillRect(s.x, s.y, s.size * 0.5, s.size + s.speed * 3);
+    } else {
+      ctx.fillRect(s.x, s.y, s.size, s.size);
+    }
+  });
+
+  // Draw solution galaxy in background
+  if (solutionImage) {
+    ctx.globalAlpha = cutscenePhase === 2 ? Math.max(0, 0.4 - (cutsceneTimer - 360) / 600) : 0.4;
+    ctx.drawImage(solutionImage, 0, 0);
+    ctx.globalAlpha = 1;
+  }
+
+  // Pod
+  if (cutscenePhase < 2) {
+    const podX = W / 2;
+    const podY = H / 2 + 50;
+
+    ctx.save();
+    ctx.translate(podX, podY);
+
+    // Engine glow
+    ctx.fillStyle = 'rgba(204, 102, 255, 0.1)';
+    ctx.beginPath();
+    ctx.ellipse(0, 15, 20, 8 + Math.random() * 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body
+    ctx.fillStyle = '#667';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 38, 18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#99a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Window
+    ctx.fillStyle = '#224';
+    ctx.beginPath();
+    ctx.arc(-5, -3, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#88a';
+    ctx.stroke();
+
+    // Face in window
+    if (faceImg.complete) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(-5, -3, 10, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(faceImg, -15, -13, 20, 20);
+      ctx.restore();
+    }
+
+    // Chai on top
+    ctx.fillStyle = '#ddb';
+    ctx.beginPath();
+    ctx.arc(12, -20, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(7, -26); ctx.lineTo(9, -30); ctx.lineTo(12, -26); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(12, -26); ctx.lineTo(15, -30); ctx.lineTo(17, -26); ctx.fill();
+    ctx.fillStyle = '#333';
+    ctx.beginPath(); ctx.arc(10, -21, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f33';
+    ctx.beginPath(); ctx.arc(14, -21, 1.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Text
+  ctx.textAlign = 'center';
+
+  if (cutscenePhase === 0) {
+    ctx.font = '11px "Press Start 2P"';
+    ctx.fillStyle = '#ff0';
+    ctx.shadowColor = '#ff0';
+    ctx.shadowBlur = 12;
+    ctx.fillText('STAR MAP COMPLETE!', W / 2, 60);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#33ff33';
+    ctx.fillText('THE GALAXY IS MAPPED...', W / 2, 90);
+  } else if (cutscenePhase === 1) {
+    // Draw route line
+    const progress = Math.min(1, (cutsceneTimer - 180) / 120);
+    const pointsToShow = Math.floor(progress * cutsceneRoute.length);
+
+    if (pointsToShow >= 2) {
+      ctx.strokeStyle = '#ffa500';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#ffa500';
+      ctx.shadowBlur = 8;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(cutsceneRoute[0].x, cutsceneRoute[0].y);
+      for (let i = 1; i < pointsToShow; i++) {
+        ctx.lineTo(cutsceneRoute[i].x, cutsceneRoute[i].y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 0;
+
+      // Pulsing dot at route tip
+      const tipPoint = cutsceneRoute[pointsToShow - 1];
+      const dotPulse = 0.7 + Math.sin(frame * 0.2) * 0.3;
+      ctx.fillStyle = `rgba(255, 165, 0, ${dotPulse})`;
+      ctx.beginPath();
+      ctx.arc(tipPoint.x, tipPoint.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = '#66ddff';
+    ctx.shadowColor = '#66ddff';
+    ctx.shadowBlur = 10;
+    ctx.fillText('COURSE PLOTTED', W / 2, 55);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = '#aaa';
+    ctx.fillText('THE WAY HOME IS CLEAR', W / 2, 80);
+  } else {
+    const t = cutsceneTimer - 360;
+    const alpha = Math.min(1, t / 30);
+
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillStyle = `rgba(255, 170, 0, ${alpha})`;
+    ctx.shadowColor = '#ffa500';
+    ctx.shadowBlur = 12 * alpha;
+    ctx.fillText('ALMOST HOME...', W / 2, 55);
+    ctx.shadowBlur = 0;
+
+    ctx.font = '7px "Press Start 2P"';
+    ctx.fillStyle = `rgba(204, 102, 255, ${alpha})`;
+    ctx.fillText('NEXT STOP: A NEW FAMILY', W / 2, 82);
+  }
+
+  ctx.textAlign = 'left';
+  ctx.shadowBlur = 0;
+}
+
+// ==========================================
+//  MAIN GAME LOOP
+// ==========================================
+function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+  frame++;
+
+  // Victory cutscene takes over
+  if (gameState === 'victoryCutscene') {
+    updateCutscene();
+    drawCutscene();
+    return;
+  }
+
+  // Delta time for timer
+  if (lastTimestamp === 0) lastTimestamp = timestamp;
+  const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+  lastTimestamp = timestamp;
+
+  // Update
+  if (gameState === 'playing') {
+    updateTimer(dt);
+  }
+
+  if (gameState === 'waveTransition') {
+    waveTransitionTimer--;
+    if (waveTransitionTimer <= 0) {
+      nextWave();
+      gameState = 'playing';
+    }
+  }
+
+  // Draw
+  const shake = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  const shakeY = shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+  if (shakeTimer > 0) shakeTimer--;
+
+  ctx.save();
+  ctx.translate(shake, shakeY);
+
+  // Background
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, W, H);
+
+  if (gameState === 'playing') {
+    drawPuzzle();
+    drawTimerBar();
+  }
+
+  if (gameState === 'waiting') {
+    drawBgStars();
+    drawWaitingOverlay();
+  }
+  if (gameState === 'waveTransition') {
+    drawBgStars();
+    drawWaveTransitionOverlay();
+  }
+  if (gameState === 'gameover') {
+    drawBgStars();
+    drawGameOverOverlay();
+  }
+  if (gameState === 'win') {
+    drawBgStars();
+  }
+
+  ctx.restore();
+}
+
+// ==========================================
+//  INIT
+// ==========================================
+updateHUD();
+requestAnimationFrame(gameLoop);
+
+</script>
+</body>
+</html>
